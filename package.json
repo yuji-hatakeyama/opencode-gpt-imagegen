@@ -1,0 +1,52 @@
+{
+  "name": "opencode-gpt-imagegen",
+  "version": "0.1.0",
+  "description": "OpenCode plugin that exposes a gpt_image_gen tool backed by OpenAI's hosted image_generation tool through the ChatGPT subscription.",
+  "type": "module",
+  "main": "./src/index.ts",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "files": [
+    "src",
+    "tsconfig.json",
+    "README.md",
+    "LICENSE"
+  ],
+  "scripts": {
+    "typecheck": "tsc --noEmit"
+  },
+  "keywords": [
+    "opencode",
+    "opencode-plugin",
+    "openai",
+    "gpt-image",
+    "image-generation",
+    "chatgpt",
+    "codex",
+    "plugin"
+  ],
+  "author": "Yuji Hatakeyama",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/yuji-hatakeyama/opencode-gpt-imagegen.git"
+  },
+  "homepage": "https://github.com/yuji-hatakeyama/opencode-gpt-imagegen#readme",
+  "bugs": {
+    "url": "https://github.com/yuji-hatakeyama/opencode-gpt-imagegen/issues"
+  },
+  "peerDependencies": {
+    "@opencode-ai/plugin": "*"
+  },
+  "devDependencies": {
+    "@opencode-ai/plugin": "^1.14.41",
+    "@tsconfig/node22": "^22.0.2",
+    "@types/node": "^22.10.0",
+    "typescript": "^5.8.0"
+  },
+  "dependencies": {
+    "file-type": "^22.0.1",
+    "xdg-basedir": "^5.1.0"
+  }
+}
