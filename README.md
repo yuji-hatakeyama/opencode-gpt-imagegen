@@ -17,7 +17,16 @@
 
 ## Installation
 
-*Installation instructions are coming with the upcoming npm release. Stay tuned.*
+Add this plugin to your [OpenCode config](https://opencode.ai/docs/plugins/). For example, in `opencode.json`:
+
+```json
+{
+  "$schema": "https://opencode.ai/config.json",
+  "plugin": ["opencode-gpt-imagegen"]
+}
+```
+
+OpenCode auto-installs the package via Bun on next launch — no separate `npm install` step is needed. The plugin requires OpenCode to be authenticated with ChatGPT.
 
 ## Usage
 
