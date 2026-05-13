@@ -21,11 +21,33 @@
 
 ## Usage
 
-Just ask your agent in natural language:
+Just ask your agent in natural language and `gpt_image_gen` will be picked up.
 
-> Generate a beautiful 1024x1024 sunset image!
+The three examples below are the **actual outputs of this repo's e2e test suite** — see [`tests/e2e.test.ts`](./tests/e2e.test.ts) for the exact prompts and assertions.
 
-The agent picks `gpt_image_gen`, the plugin streams the generation, and the PNG lands on disk in your project directory.
+### Example A — generate
+
+> Draw a man in a navy samue with a red hachimaki, standing in a garden full of cherry blossoms. 90s anime style. Save it as `character.png`, portrait 1024x1536.
+
+<p align="center"><img src="./assets/character.png" alt="Example A output: man in samue, portrait" width="320" /></p>
+
+### Example B — auto-versioning
+
+`gpt_image_gen` never overwrites an existing file: when the `out` path is already taken, it picks `-v2`, `-v3`, … instead.
+
+> Now do the same path but make it a woman in a yellow yukata holding a red wagasa, in a moonlit garden with fireflies. Landscape 1536x1024.
+
+The previous `character.png` is left untouched; the new image lands at `character-v2.png`.
+
+<p align="center"><img src="./assets/character-v2.png" alt="Example B output: woman in yukata, landscape (auto-versioned)" width="480" /></p>
+
+### Example C — compose with reference images
+
+Pass existing images via the `images` argument and the model treats them as references for the next generation.
+
+> Take `character.png` and `character-v2.png` and put both characters together on the engawa of an old Japanese house, smiling at the viewer. 2048x1152, same 90s anime style.
+
+<p align="center"><img src="./assets/together.png" alt="Example C output: both characters composed onto an engawa" width="640" /></p>
 
 ## Roadmap
 
