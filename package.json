@@ -14,7 +14,8 @@
     "LICENSE"
   ],
   "scripts": {
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "check": "biome check --write ."
   },
   "keywords": [
     "opencode",
@@ -40,6 +41,7 @@
     "@opencode-ai/plugin": "*"
   },
   "devDependencies": {
+    "@biomejs/biome": "2.4.15",
     "@opencode-ai/plugin": "^1.14.41",
     "@tsconfig/node22": "^22.0.2",
     "@types/node": "^22.10.0",
