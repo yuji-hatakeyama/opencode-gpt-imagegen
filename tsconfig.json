@@ -5,12 +5,8 @@
     "module": "esnext",
     "moduleResolution": "bundler",
     "lib": ["es2022", "dom", "dom.iterable", "dom.asynciterable"],
-    "types": ["node"],
-    "outDir": "./dist",
-    "rootDir": "./src",
-    "declaration": true,
-    "declarationMap": true,
-    "sourceMap": true
+    "types": ["bun"],
+    "noEmit": true
   },
-  "include": ["src"]
+  "include": ["src", "tests"]
 }
