@@ -45,7 +45,7 @@
     "url": "https://github.com/yuji-hatakeyama/opencode-gpt-imagegen/issues"
   },
   "peerDependencies": {
-    "@opencode-ai/plugin": "*"
+    "@opencode-ai/plugin": "^1.14.0"
   },
   "devDependencies": {
     "@biomejs/biome": "2.4.15",
