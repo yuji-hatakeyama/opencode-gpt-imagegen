@@ -74,7 +74,10 @@ async function loadAuthData(): Promise<Record<string, unknown>> {
   if (process.env.OPENCODE_AUTH_CONTENT) {
     return JSON.parse(process.env.OPENCODE_AUTH_CONTENT) as Record<string, unknown>
   }
-  const raw = await fs.readFile(path.join(xdgData!, "opencode", "auth.json"), "utf-8")
+  if (!xdgData) {
+    throw new Error("could not determine XDG data directory")
+  }
+  const raw = await fs.readFile(path.join(xdgData, "opencode", "auth.json"), "utf-8")
   return JSON.parse(raw) as Record<string, unknown>
 }
 
@@ -89,6 +92,12 @@ async function loadOpenAIAuth(): Promise<OpenAIAuth | undefined> {
     return undefined
   }
   return undefined
+}
+
+type CodexSSEEvent = {
+  type?: string
+  item?: { type?: string; result?: string }
+  result?: string
 }
 
 async function parseImageGenerationResultFromSSE(stream: ReadableStream<Uint8Array>): Promise<string> {
@@ -106,9 +115,9 @@ async function parseImageGenerationResultFromSSE(stream: ReadableStream<Uint8Arr
       if (!line.startsWith("data: ")) continue
       const data = line.slice(6).trim()
       if (data.length === 0 || data === "[DONE]") continue
-      let json: Record<string, any>
+      let json: CodexSSEEvent
       try {
-        json = JSON.parse(data)
+        json = JSON.parse(data) as CodexSSEEvent
       } catch {
         continue
       }
