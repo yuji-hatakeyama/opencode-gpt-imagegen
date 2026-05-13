@@ -3,19 +3,24 @@
   "version": "0.1.0",
   "description": "OpenCode plugin that exposes a gpt_image_gen tool backed by OpenAI's hosted image_generation tool through the ChatGPT subscription.",
   "type": "module",
-  "main": "./src/index.ts",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
   "exports": {
-    ".": "./src/index.ts"
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
   },
   "files": [
-    "src",
-    "tsconfig.json",
+    "dist",
     "README.md",
     "LICENSE"
   ],
   "scripts": {
     "typecheck": "tsc --noEmit",
-    "check": "biome check --write ."
+    "check": "biome check --write .",
+    "build": "tsc",
+    "prepublishOnly": "bun run build"
   },
   "keywords": [
     "opencode",
