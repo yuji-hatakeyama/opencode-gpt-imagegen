@@ -41,9 +41,9 @@ The previous `character.png` is left untouched; the new image lands at `characte
 
 <p align="center"><img src="./assets/character-v2.png" alt="Example B output: woman in yukata, landscape (auto-versioned)" width="480" /></p>
 
-### Example C — compose with reference images
+### Example C — feed existing image files as input
 
-Pass existing images via the `images` argument and the model treats them as references for the next generation.
+Pass any number of image paths via the `images` argument and the model uses them as references for the next generation — for style guidance, characters to keep, scenes to extend, and so on.
 
 > Take `character.png` and `character-v2.png` and put both characters together on the engawa of an old Japanese house, smiling at the viewer. 2048x1152, same 90s anime style.
 
