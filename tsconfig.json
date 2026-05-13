@@ -5,7 +5,7 @@
     "strict": true,
     "module": "nodenext",
     "moduleResolution": "nodenext",
-    "lib": ["es2022", "dom", "dom.iterable"],
+    "lib": ["es2022", "dom", "dom.iterable", "dom.asynciterable"],
     "types": ["node"]
   },
   "include": ["src"]

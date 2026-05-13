@@ -2,6 +2,7 @@ import * as fs from "node:fs/promises"
 import * as path from "node:path"
 import type { Hooks, Plugin, PluginInput, PluginModule } from "@opencode-ai/plugin"
 import { tool } from "@opencode-ai/plugin"
+import { EventSourceParserStream } from "eventsource-parser/stream"
 import { fileTypeFromBuffer } from "file-type"
 import { xdgData } from "xdg-basedir"
 
@@ -101,40 +102,25 @@ type CodexSSEEvent = {
 }
 
 async function parseImageGenerationResultFromSSE(stream: ReadableStream<Uint8Array>): Promise<string> {
-  const reader = stream.getReader()
-  const decoder = new TextDecoder()
-  let buffer = ""
-  let result: string | undefined
-  while (true) {
-    const { done, value } = await reader.read()
-    if (done) break
-    buffer += decoder.decode(value, { stream: true })
-    const lines = buffer.split("\n")
-    buffer = lines.pop() ?? ""
-    for (const line of lines) {
-      if (!line.startsWith("data: ")) continue
-      const data = line.slice(6).trim()
-      if (data.length === 0 || data === "[DONE]") continue
-      let json: CodexSSEEvent
-      try {
-        json = JSON.parse(data) as CodexSSEEvent
-      } catch {
-        continue
-      }
-      if (json.type === "response.output_item.done" && json.item?.type === "image_generation_call") {
-        if (typeof json.item.result === "string") result = json.item.result
-      }
+  const events = (stream as unknown as ReadableStream<BufferSource>)
+    .pipeThrough(new TextDecoderStream())
+    .pipeThrough(new EventSourceParserStream())
+  for await (const event of events) {
+    if (event.data === "[DONE]") continue
+    try {
+      const json = JSON.parse(event.data) as CodexSSEEvent
       if (
-        typeof json.result === "string" &&
-        typeof json.type === "string" &&
-        json.type.includes("image_generation_call")
+        json.type === "response.output_item.done" &&
+        json.item?.type === "image_generation_call" &&
+        typeof json.item.result === "string"
       ) {
-        result = json.result
+        return json.item.result
       }
+    } catch {
+      // SSE keepalive or non-JSON heartbeat
     }
   }
-  if (!result) throw new Error("no image_generation result returned by codex backend")
-  return result
+  throw new Error("no image_generation result returned by codex backend")
 }
 
 async function callViaCodexResponses(
