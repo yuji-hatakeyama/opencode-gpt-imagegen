@@ -1,9 +1,9 @@
+import * as fs from "node:fs/promises"
+import * as path from "node:path"
 import type { Hooks, Plugin, PluginInput, PluginModule } from "@opencode-ai/plugin"
 import { tool } from "@opencode-ai/plugin"
 import { fileTypeFromBuffer } from "file-type"
 import { xdgData } from "xdg-basedir"
-import * as fs from "fs/promises"
-import * as path from "path"
 
 // Codex OAuth responses endpoint URL.
 // https://github.com/openai/codex/blob/fca81eeb5bab4cad997622a359d446e6489c445b/codex-rs/model-provider-info/src/lib.rs#L37
@@ -81,7 +81,7 @@ async function loadAuthData(): Promise<Record<string, unknown>> {
 async function loadOpenAIAuth(): Promise<OpenAIAuth | undefined> {
   try {
     const data = await loadAuthData()
-    const entry = data["openai"] as Partial<OpenAIAuth> | undefined
+    const entry = data.openai as Partial<OpenAIAuth> | undefined
     if (entry?.type === "oauth" && typeof entry.access === "string") {
       return entry as OpenAIAuth
     }
@@ -128,7 +128,11 @@ async function parseImageGenerationResultFromSSE(stream: ReadableStream<Uint8Arr
   return result
 }
 
-async function callViaCodexResponses(auth: OpenAIAuth, args: GenerateArgs, inputImageDataUrls: string[]): Promise<string> {
+async function callViaCodexResponses(
+  auth: OpenAIAuth,
+  args: GenerateArgs,
+  inputImageDataUrls: string[],
+): Promise<string> {
   const userContent: Array<Record<string, unknown>> = [{ type: "input_text", text: args.prompt }]
   for (const dataUrl of inputImageDataUrls) {
     userContent.push({ type: "input_image", image_url: dataUrl })
@@ -212,7 +216,9 @@ const GptImagePlugin: Plugin = async (_input: PluginInput): Promise<Hooks> => {
           }
 
           const inputPaths = args.images ?? []
-          const inputImageDataUrls = await Promise.all(inputPaths.map((path) => readImageAsDataUrl(path, ctx.directory)))
+          const inputImageDataUrls = await Promise.all(
+            inputPaths.map((path) => readImageAsDataUrl(path, ctx.directory)),
+          )
           const base64 = await callViaCodexResponses(auth, args as GenerateArgs, inputImageDataUrls)
 
           const requestedPath = path.isAbsolute(args.out) ? args.out : path.resolve(ctx.directory, args.out)
