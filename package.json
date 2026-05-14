@@ -1,7 +1,7 @@
 {
   "name": "opencode-gpt-imagegen",
-  "version": "0.1.0",
-  "description": "OpenCode plugin that exposes a gpt_image_gen tool backed by OpenAI's hosted image_generation tool through the ChatGPT subscription.",
+  "version": "0.1.1",
+  "description": "OpenCode plugin for GPT Image 2 generation through your ChatGPT subscription, with reference images and safe PNG output.",
   "type": "module",
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
@@ -27,10 +27,16 @@
   "keywords": [
     "opencode",
     "opencode-plugin",
+    "opencode-ai",
     "openai",
+    "gpt-image-2",
     "gpt-image",
     "image-generation",
+    "image-editing",
+    "text-to-image",
     "chatgpt",
+    "chatgpt-images",
+    "chatgpt-oauth",
     "codex",
     "plugin"
   ],
