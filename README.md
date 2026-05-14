@@ -4,6 +4,9 @@
 
 > Bring [**ChatGPT Images 2.0**](https://openai.com/index/introducing-chatgpt-images-2-0/) (`gpt-image-2`) to [OpenCode](https://opencode.ai). Use it through your **ChatGPT subscription** (no API costs!) or through the **OpenAI API** — your call.
 
+[![OpenCode plugin](https://img.shields.io/badge/OpenCode-plugin-blue.svg)](https://opencode.ai/docs/plugins/)
+[![npm version](https://img.shields.io/npm/v/opencode-gpt-imagegen.svg)](https://www.npmjs.com/package/opencode-gpt-imagegen)
+[![CI](https://github.com/yuji-hatakeyama/opencode-gpt-imagegen/actions/workflows/ci.yml/badge.svg)](https://github.com/yuji-hatakeyama/opencode-gpt-imagegen/actions/workflows/ci.yml)
 [![license: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](./LICENSE)
 [![status](https://img.shields.io/badge/status-v0.1.0-orange.svg)](#roadmap)
 
