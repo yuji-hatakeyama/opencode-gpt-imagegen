@@ -33,6 +33,18 @@ NEXT=$(node -p "
   const m = { patch: [v[0], v[1], v[2]+1], minor: [v[0], v[1]+1, 0], major: [v[0]+1, 0, 0] };
   m['$LEVEL'].join('.')
 ")
+HEAD_SHA=$(git rev-parse --short HEAD)
+REMOTE_URL=$(git remote get-url origin)
+REMOTE_URL="${REMOTE_URL%.git}"
+case "$REMOTE_URL" in
+  git@*:*)
+    rest="${REMOTE_URL#git@}"
+    REPO_URL="https://${rest/://}"
+    ;;
+  *)
+    REPO_URL="$REMOTE_URL"
+    ;;
+esac
 
 echo "============================================"
 echo "  Release: v$CURRENT → v$NEXT  ($LEVEL)"
@@ -46,16 +58,8 @@ else
   git log --pretty=format:'  %h %s' "$PREV_TAG..HEAD"
   echo
   echo
-
-  if command -v tig >/dev/null 2>&1; then
-    echo "Opening tig for interactive review (q to return)..."
-    sleep 0.5
-    tig "$PREV_TAG..HEAD"
-  else
-    echo "Showing commits with diffs in pager (q to quit)..."
-    sleep 0.5
-    git log -p "$PREV_TAG..HEAD"
-  fi
+  echo "Review:"
+  echo "  $REPO_URL/compare/$PREV_TAG...$HEAD_SHA"
 fi
 
 echo
