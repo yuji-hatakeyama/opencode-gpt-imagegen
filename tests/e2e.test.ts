@@ -1,27 +1,49 @@
 import { beforeAll, describe, expect, test } from "bun:test"
 import { spawn } from "node:child_process"
 import { existsSync } from "node:fs"
-import { mkdtemp, readFile } from "node:fs/promises"
+import { mkdir, mkdtemp, readFile, writeFile } from "node:fs/promises"
 import os from "node:os"
 import path from "node:path"
+import { pathToFileURL } from "node:url"
 
-const WORKDIR = await mkdtemp(path.join(os.tmpdir(), "qa-imagegen-"))
+const WORKDIR = await mkdtemp(path.join(os.tmpdir(), "qa-imagegen-work-"))
+const XDG_CONFIG_HOME = await mkdtemp(path.join(os.tmpdir(), "qa-imagegen-cfg-"))
+const REPO_DIR = path.resolve(import.meta.dir, "..")
 const RUN_TIMEOUT_MS = 300_000
 const TEST_TIMEOUT_MS = RUN_TIMEOUT_MS + 10_000
 const STYLE = "hand-drawn 90s Japanese animation style"
+
+async function buildPlugin(): Promise<void> {
+  return new Promise((resolve, reject) => {
+    const proc = spawn("bun", ["run", "build"], {
+      cwd: REPO_DIR,
+      stdio: "inherit",
+    })
+    proc.on("error", reject)
+    proc.on("close", (code) => {
+      if (code !== 0) reject(new Error(`bun run build failed (exit=${code})`))
+      else resolve()
+    })
+  })
+}
+
+async function writeOpencodeConfig(): Promise<void> {
+  const cfgDir = path.join(XDG_CONFIG_HOME, "opencode")
+  await mkdir(cfgDir, { recursive: true })
+  const config = {
+    $schema: "https://opencode.ai/config.json",
+    plugin: [pathToFileURL(REPO_DIR).href],
+  }
+  await writeFile(path.join(cfgDir, "opencode.jsonc"), JSON.stringify(config, null, 2))
+}
 
 async function runOpencode(prompt: string): Promise<void> {
   return new Promise((resolve, reject) => {
     const args = ["run", prompt, "--dir", WORKDIR, "--dangerously-skip-permissions"]
     if (process.env.OPENCODE_MODEL) args.push("--model", process.env.OPENCODE_MODEL)
-    const proc = spawn("opencode", args, { stdio: ["ignore", "pipe", "pipe"] })
-    let stdout = ""
-    let stderr = ""
-    proc.stdout.on("data", (d) => {
-      stdout += d.toString()
-    })
-    proc.stderr.on("data", (d) => {
-      stderr += d.toString()
+    const proc = spawn("opencode", args, {
+      stdio: "inherit",
+      env: { ...process.env, XDG_CONFIG_HOME },
     })
     const timer = setTimeout(() => {
       proc.kill("SIGTERM")
@@ -32,14 +54,12 @@ async function runOpencode(prompt: string): Promise<void> {
     })
     proc.on("close", (code, signal) => {
       clearTimeout(timer)
-      const summary = `exit=${code ?? "null"} signal=${signal ?? "null"}\n--- stdout ---\n${stdout.trim()}\n--- stderr ---\n${stderr.trim()}`
-      console.log(summary)
       if (signal === "SIGTERM") {
-        reject(new Error(`opencode run timed out after ${RUN_TIMEOUT_MS}ms.\n${summary}`))
+        reject(new Error(`opencode run timed out after ${RUN_TIMEOUT_MS}ms`))
         return
       }
       if (code !== 0) {
-        reject(new Error(`opencode run failed.\n${summary}`))
+        reject(new Error(`opencode run failed (exit=${code} signal=${signal ?? "null"})`))
         return
       }
       resolve()
@@ -59,8 +79,11 @@ function readPngDimensions(buf: Buffer): { width: number; height: number } {
 }
 
 describe.skipIf(!process.env.RUN_E2E)("gpt_image_gen e2e", () => {
-  beforeAll(() => {
-    console.log(`workdir: ${WORKDIR}`)
+  beforeAll(async () => {
+    console.log(`WORKDIR: ${WORKDIR}`)
+    console.log(`XDG_CONFIG_HOME: ${XDG_CONFIG_HOME}`)
+    await buildPlugin()
+    await writeOpencodeConfig()
   })
 
   test(
