@@ -37,9 +37,9 @@ export function buildSavedMessage(savedPath: string, requestedPath: string): str
 type SaveResult = { savedPath: string; versioned: boolean; message: string }
 
 // Resolve the output path (relative to ctxDir unless absolute), then write the
-// decoded PNG without ever overwriting an existing file. The collision check
-// runs right before the write so the chosen suffix reflects the on-disk state
-// at write time. Returns the user-facing message alongside the saved path.
+// decoded PNG. Avoiding an overwrite is best-effort: the collision check and the
+// write are not atomic, so a concurrent writer racing between them could still be
+// clobbered. Returns the user-facing message alongside the saved path.
 export async function saveGeneratedImage(out: string, ctxDir: string, base64: string): Promise<SaveResult> {
   const requestedPath = path.isAbsolute(out) ? out : path.resolve(ctxDir, out)
   await fs.mkdir(path.dirname(requestedPath), { recursive: true })
