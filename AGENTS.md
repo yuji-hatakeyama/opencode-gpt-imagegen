@@ -13,7 +13,7 @@
 - `bun run typecheck` runs `tsc --noEmit` over `src` and `tests`.
 - `bunx biome ci .` is the CI formatter/linter check.
 - `bun run check` runs `biome check --write .`; it may modify files.
-- `bun test` runs Bun tests, but the current e2e suite is skipped unless `RUN_E2E` is set.
+- `bun test` runs Bun tests: the helper-module unit tests always run; the e2e suite is skipped unless `RUN_E2E` is set.
 - `bun run test:e2e` sets `RUN_E2E=1 OPENCODE_MODEL=openai/gpt-5.5` and can take minutes because it calls `opencode run` and generates real images.
 - CI runs `bun run typecheck`, `bunx biome ci .`, and `bun test`. `bun test` covers the unit tests only; the e2e suite is skipped because `RUN_E2E` is unset in CI.
 
