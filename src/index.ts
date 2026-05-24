@@ -2,7 +2,7 @@ import type { Hooks, Plugin, PluginInput, PluginModule } from "@opencode-ai/plug
 import { tool } from "@opencode-ai/plugin"
 import { loadOpenAIAuth } from "./auth"
 import { callViaCodexResponses } from "./codex"
-import { readImageAsDataUrl } from "./input-image"
+import { readReferenceImages } from "./input-image"
 import { saveGeneratedImage } from "./output-image"
 import type { GenerateArgs } from "./types"
 
@@ -44,10 +44,7 @@ const GptImagePlugin: Plugin = async (_input: PluginInput): Promise<Hooks> => {
             throw new Error("OpenAI ChatGPT OAuth credentials not configured.")
           }
 
-          const inputPaths = args.images ?? []
-          const inputImageDataUrls = await Promise.all(
-            inputPaths.map((path) => readImageAsDataUrl(path, ctx.directory)),
-          )
+          const inputImageDataUrls = await readReferenceImages(args.images, ctx.directory)
           const base64 = await callViaCodexResponses(auth, args as GenerateArgs, inputImageDataUrls)
 
           const { savedPath, versioned, message } = await saveGeneratedImage(args.out, ctx.directory, base64)
