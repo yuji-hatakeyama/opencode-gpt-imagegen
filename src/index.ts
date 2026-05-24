@@ -1,10 +1,8 @@
-import * as fs from "node:fs/promises"
-import * as path from "node:path"
 import type { Hooks, Plugin, PluginInput, PluginModule } from "@opencode-ai/plugin"
 import { tool } from "@opencode-ai/plugin"
 import { EventSourceParserStream } from "eventsource-parser/stream"
-import { fileTypeFromBuffer } from "file-type"
 import { loadOpenAIAuth } from "./auth"
+import { readImageAsDataUrl } from "./input-image"
 import { saveGeneratedImage } from "./output-image"
 import type { GenerateArgs, OpenAIAuth } from "./types"
 
@@ -16,16 +14,6 @@ const CODEX_RESPONSES_ENDPOINT = "https://chatgpt.com/backend-api/codex/response
 // Codex model slug used for the hosted image_generation turn.
 // https://github.com/openai/codex/blob/fca81eeb5bab4cad997622a359d446e6489c445b/codex-rs/models-manager/models.json#L24
 const SUBSCRIPTION_MODEL = "gpt-5.5"
-
-async function readImageAsDataUrl(filePath: string, ctxDir: string): Promise<string> {
-  const abs = path.isAbsolute(filePath) ? filePath : path.resolve(ctxDir, filePath)
-  const buf = await fs.readFile(abs)
-  const detected = await fileTypeFromBuffer(buf)
-  if (!detected?.mime.startsWith("image/")) {
-    throw new Error(`unsupported image file type: ${abs}`)
-  }
-  return `data:${detected.mime};base64,${buf.toString("base64")}`
-}
 
 type CodexSSEEvent = {
   type?: string
