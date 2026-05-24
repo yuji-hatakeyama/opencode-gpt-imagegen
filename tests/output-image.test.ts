@@ -1,0 +1,107 @@
+import { afterEach, beforeEach, describe, expect, test } from "bun:test"
+import { existsSync } from "node:fs"
+import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises"
+import os from "node:os"
+import path from "node:path"
+import { buildSavedMessage, pickNonOverwritePath, saveGeneratedImage } from "../src/output-image"
+
+let dir: string
+
+beforeEach(async () => {
+  dir = await mkdtemp(path.join(os.tmpdir(), "out-image-"))
+})
+
+afterEach(async () => {
+  await rm(dir, { recursive: true, force: true })
+})
+
+// A 1x1 transparent PNG, base64-encoded; just enough to round-trip through saveGeneratedImage.
+const PNG_BASE64 = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg=="
+
+// Place a real PNG at the path so it is occupied; pickNonOverwritePath only checks existence.
+function occupy(p: string): Promise<void> {
+  return writeFile(p, Buffer.from(PNG_BASE64, "base64"))
+}
+
+describe("pickNonOverwritePath", () => {
+  test("returns the requested path when nothing exists", async () => {
+    const requested = path.join(dir, "image.png")
+    expect(await pickNonOverwritePath(requested)).toBe(requested)
+  })
+
+  test("appends -v2 when the requested path exists", async () => {
+    const requested = path.join(dir, "image.png")
+    await occupy(requested)
+    expect(await pickNonOverwritePath(requested)).toBe(path.join(dir, "image-v2.png"))
+  })
+
+  test("skips to the first free suffix when earlier versions exist", async () => {
+    const requested = path.join(dir, "image.png")
+    await occupy(requested)
+    await occupy(path.join(dir, "image-v2.png"))
+    expect(await pickNonOverwritePath(requested)).toBe(path.join(dir, "image-v3.png"))
+  })
+
+  test("preserves the extension and stem in the versioned name", async () => {
+    const requested = path.join(dir, "my.photo.jpeg")
+    await occupy(requested)
+    expect(await pickNonOverwritePath(requested)).toBe(path.join(dir, "my.photo-v2.jpeg"))
+  })
+})
+
+describe("buildSavedMessage", () => {
+  test("omits the version note when the path was not changed", () => {
+    const p = "/tmp/image.png"
+    expect(buildSavedMessage(p, p)).toBe(`Generated image saved to ${p}.`)
+  })
+
+  test("explains the versioning when the saved path differs from the requested one", () => {
+    const saved = "/tmp/image-v2.png"
+    const requested = "/tmp/image.png"
+    expect(buildSavedMessage(saved, requested)).toBe(
+      `Generated image saved to ${saved} (the requested path ${requested} already existed; ` +
+        "the new image was versioned to avoid overwriting it).",
+    )
+  })
+})
+
+describe("saveGeneratedImage", () => {
+  test("writes the decoded image to the requested path", async () => {
+    const out = "image.png"
+    const result = await saveGeneratedImage(out, dir, PNG_BASE64)
+    expect(result.savedPath).toBe(path.join(dir, "image.png"))
+    expect(result.versioned).toBe(false)
+    const written = await readFile(result.savedPath)
+    expect(written.equals(Buffer.from(PNG_BASE64, "base64"))).toBe(true)
+  })
+
+  test("resolves a relative path against the context directory", async () => {
+    const result = await saveGeneratedImage("nested/image.png", dir, PNG_BASE64)
+    expect(result.savedPath).toBe(path.join(dir, "nested", "image.png"))
+    expect(existsSync(result.savedPath)).toBe(true)
+  })
+
+  test("honors an absolute output path verbatim", async () => {
+    const abs = path.join(dir, "absolute.png")
+    const result = await saveGeneratedImage(abs, "/some/other/ctx", PNG_BASE64)
+    expect(result.savedPath).toBe(abs)
+  })
+
+  test("creates missing parent directories", async () => {
+    const result = await saveGeneratedImage("a/b/c/image.png", dir, PNG_BASE64)
+    expect(existsSync(result.savedPath)).toBe(true)
+  })
+
+  test("versions the output instead of overwriting an existing file", async () => {
+    const first = await saveGeneratedImage("image.png", dir, PNG_BASE64)
+    const second = await saveGeneratedImage("image.png", dir, PNG_BASE64)
+    expect(second.savedPath).toBe(path.join(dir, "image-v2.png"))
+    expect(second.versioned).toBe(true)
+    expect(second.message).toBe(
+      `Generated image saved to ${second.savedPath} (the requested path ${first.savedPath} already existed; ` +
+        "the new image was versioned to avoid overwriting it).",
+    )
+    // The original file is left untouched.
+    expect(existsSync(first.savedPath)).toBe(true)
+  })
+})
