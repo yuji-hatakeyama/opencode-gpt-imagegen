@@ -5,6 +5,7 @@ import { tool } from "@opencode-ai/plugin"
 import { EventSourceParserStream } from "eventsource-parser/stream"
 import { fileTypeFromBuffer } from "file-type"
 import { xdgData } from "xdg-basedir"
+import { saveGeneratedImage } from "./output-image"
 import type { GenerateArgs, OpenAIAuth } from "./types"
 
 // Codex OAuth responses endpoint URL.
@@ -16,8 +17,6 @@ const CODEX_RESPONSES_ENDPOINT = "https://chatgpt.com/backend-api/codex/response
 // https://github.com/openai/codex/blob/fca81eeb5bab4cad997622a359d446e6489c445b/codex-rs/models-manager/models.json#L24
 const SUBSCRIPTION_MODEL = "gpt-5.5"
 
-const MAX_OUTPUT_VERSION_SUFFIX = 999
-
 async function readImageAsDataUrl(filePath: string, ctxDir: string): Promise<string> {
   const abs = path.isAbsolute(filePath) ? filePath : path.resolve(ctxDir, filePath)
   const buf = await fs.readFile(abs)
@@ -26,37 +25,6 @@ async function readImageAsDataUrl(filePath: string, ctxDir: string): Promise<str
     throw new Error(`unsupported image file type: ${abs}`)
   }
   return `data:${detected.mime};base64,${buf.toString("base64")}`
-}
-
-async function pathExists(p: string): Promise<boolean> {
-  try {
-    await fs.access(p)
-    return true
-  } catch {
-    return false
-  }
-}
-
-async function pickNonOverwritePath(requested: string): Promise<string> {
-  if (!(await pathExists(requested))) return requested
-  const dir = path.dirname(requested)
-  const ext = path.extname(requested)
-  const stem = path.basename(requested, ext)
-  for (let n = 2; n <= MAX_OUTPUT_VERSION_SUFFIX; n++) {
-    const candidate = path.join(dir, `${stem}-v${n}${ext}`)
-    if (!(await pathExists(candidate))) return candidate
-  }
-  throw new Error(
-    `could not find a non-conflicting filename under ${dir}/${stem}-vN${ext} (tried up to v${MAX_OUTPUT_VERSION_SUFFIX})`,
-  )
-}
-
-function buildSavedMessage(savedPath: string, requestedPath: string): string {
-  const versionNote =
-    savedPath !== requestedPath
-      ? ` (the requested path ${requestedPath} already existed; the new image was versioned to avoid overwriting it)`
-      : ""
-  return `Generated image saved to ${savedPath}${versionNote}.`
 }
 
 // Mirrors OpenCode's auth resolution: OPENCODE_AUTH_CONTENT overrides $XDG_DATA_HOME/opencode/auth.json.
@@ -206,15 +174,10 @@ const GptImagePlugin: Plugin = async (_input: PluginInput): Promise<Hooks> => {
           )
           const base64 = await callViaCodexResponses(auth, args as GenerateArgs, inputImageDataUrls)
 
-          const requestedPath = path.isAbsolute(args.out) ? args.out : path.resolve(ctx.directory, args.out)
-          await fs.mkdir(path.dirname(requestedPath), { recursive: true })
-          const savedPath = await pickNonOverwritePath(requestedPath)
-          await fs.writeFile(savedPath, Buffer.from(base64, "base64"))
-
-          const versioned = savedPath !== requestedPath
+          const { savedPath, versioned, message } = await saveGeneratedImage(args.out, ctx.directory, base64)
 
           return {
-            output: buildSavedMessage(savedPath, requestedPath),
+            output: message,
             metadata: {
               out: savedPath,
               versioned,

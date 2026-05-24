@@ -1,0 +1,53 @@
+import * as fs from "node:fs/promises"
+import * as path from "node:path"
+
+const MAX_OUTPUT_VERSION_SUFFIX = 999
+
+async function pathExists(p: string): Promise<boolean> {
+  try {
+    await fs.access(p)
+    return true
+  } catch {
+    return false
+  }
+}
+
+export async function pickNonOverwritePath(requested: string): Promise<string> {
+  if (!(await pathExists(requested))) return requested
+  const dir = path.dirname(requested)
+  const ext = path.extname(requested)
+  const stem = path.basename(requested, ext)
+  for (let n = 2; n <= MAX_OUTPUT_VERSION_SUFFIX; n++) {
+    const candidate = path.join(dir, `${stem}-v${n}${ext}`)
+    if (!(await pathExists(candidate))) return candidate
+  }
+  throw new Error(
+    `could not find a non-conflicting filename under ${dir}/${stem}-vN${ext} (tried up to v${MAX_OUTPUT_VERSION_SUFFIX})`,
+  )
+}
+
+export function buildSavedMessage(savedPath: string, requestedPath: string): string {
+  const versionNote =
+    savedPath !== requestedPath
+      ? ` (the requested path ${requestedPath} already existed; the new image was versioned to avoid overwriting it)`
+      : ""
+  return `Generated image saved to ${savedPath}${versionNote}.`
+}
+
+type SaveResult = { savedPath: string; versioned: boolean; message: string }
+
+// Resolve the output path (relative to ctxDir unless absolute), then write the
+// decoded PNG without ever overwriting an existing file. The collision check
+// runs right before the write so the chosen suffix reflects the on-disk state
+// at write time. Returns the user-facing message alongside the saved path.
+export async function saveGeneratedImage(out: string, ctxDir: string, base64: string): Promise<SaveResult> {
+  const requestedPath = path.isAbsolute(out) ? out : path.resolve(ctxDir, out)
+  await fs.mkdir(path.dirname(requestedPath), { recursive: true })
+  const savedPath = await pickNonOverwritePath(requestedPath)
+  await fs.writeFile(savedPath, Buffer.from(base64, "base64"))
+  return {
+    savedPath,
+    versioned: savedPath !== requestedPath,
+    message: buildSavedMessage(savedPath, requestedPath),
+  }
+}
