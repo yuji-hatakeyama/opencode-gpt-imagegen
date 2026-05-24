@@ -4,7 +4,6 @@ import { loadOpenAIAuth } from "./auth"
 import { callViaCodexResponses } from "./codex"
 import { readReferenceImages } from "./input-image"
 import { saveGeneratedImage } from "./output-image"
-import type { GenerateArgs } from "./types"
 
 const GptImagePlugin: Plugin = async (_input: PluginInput): Promise<Hooks> => {
   return {
@@ -45,7 +44,7 @@ const GptImagePlugin: Plugin = async (_input: PluginInput): Promise<Hooks> => {
           }
 
           const inputImageDataUrls = await readReferenceImages(args.images, ctx.directory)
-          const base64 = await callViaCodexResponses(auth, args as GenerateArgs, inputImageDataUrls)
+          const base64 = await callViaCodexResponses(auth, args, inputImageDataUrls)
 
           const { savedPath, versioned, message } = await saveGeneratedImage(args.out, ctx.directory, base64)
 
