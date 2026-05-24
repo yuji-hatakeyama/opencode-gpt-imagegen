@@ -12,17 +12,18 @@ async function pathExists(p: string): Promise<boolean> {
   }
 }
 
-export async function pickNonOverwritePath(requested: string): Promise<string> {
+// maxVersion is injectable only so tests can reach the exhaustion branch cheaply; production callers use the default.
+export async function pickNonOverwritePath(requested: string, maxVersion = MAX_OUTPUT_VERSION_SUFFIX): Promise<string> {
   if (!(await pathExists(requested))) return requested
   const dir = path.dirname(requested)
   const ext = path.extname(requested)
   const stem = path.basename(requested, ext)
-  for (let n = 2; n <= MAX_OUTPUT_VERSION_SUFFIX; n++) {
+  for (let n = 2; n <= maxVersion; n++) {
     const candidate = path.join(dir, `${stem}-v${n}${ext}`)
     if (!(await pathExists(candidate))) return candidate
   }
   throw new Error(
-    `could not find a non-conflicting filename under ${dir}/${stem}-vN${ext} (tried up to v${MAX_OUTPUT_VERSION_SUFFIX})`,
+    `could not find a non-conflicting filename under ${dir}/${stem}-vN${ext} (tried up to v${maxVersion})`,
   )
 }
 

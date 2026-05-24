@@ -47,6 +47,16 @@ describe("pickNonOverwritePath", () => {
     await occupy(requested)
     expect(await pickNonOverwritePath(requested)).toBe(path.join(dir, "my.photo-v2.jpeg"))
   })
+
+  test("throws once every version up to the limit is taken", async () => {
+    // maxVersion is lowered to 2 so we can fill the suffix space without writing 999 files.
+    const requested = path.join(dir, "image.png")
+    await occupy(requested)
+    await occupy(path.join(dir, "image-v2.png"))
+    expect(pickNonOverwritePath(requested, 2)).rejects.toThrow(
+      `could not find a non-conflicting filename under ${dir}/image-vN.png (tried up to v2)`,
+    )
+  })
 })
 
 describe("buildSavedMessage", () => {
