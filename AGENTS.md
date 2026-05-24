@@ -15,7 +15,7 @@
 - `bun run check` runs `biome check --write .`; it may modify files.
 - `bun test` runs Bun tests, but the current e2e suite is skipped unless `RUN_E2E` is set.
 - `bun run test:e2e` sets `RUN_E2E=1 OPENCODE_MODEL=openai/gpt-5.5` and can take minutes because it calls `opencode run` and generates real images.
-- CI currently runs only `bun run typecheck` and `bunx biome ci .`; it does not run `bun test`.
+- CI runs `bun run typecheck`, `bunx biome ci .`, and `bun test`. `bun test` covers the unit tests only; the e2e suite is skipped because `RUN_E2E` is unset in CI.
 
 ## E2E Requirements
 
