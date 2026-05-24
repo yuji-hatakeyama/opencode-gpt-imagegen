@@ -5,6 +5,7 @@ import { tool } from "@opencode-ai/plugin"
 import { EventSourceParserStream } from "eventsource-parser/stream"
 import { fileTypeFromBuffer } from "file-type"
 import { xdgData } from "xdg-basedir"
+import type { GenerateArgs, OpenAIAuth } from "./types"
 
 // Codex OAuth responses endpoint URL.
 // https://github.com/openai/codex/blob/fca81eeb5bab4cad997622a359d446e6489c445b/codex-rs/model-provider-info/src/lib.rs#L37
@@ -16,17 +17,6 @@ const CODEX_RESPONSES_ENDPOINT = "https://chatgpt.com/backend-api/codex/response
 const SUBSCRIPTION_MODEL = "gpt-5.5"
 
 const MAX_OUTPUT_VERSION_SUFFIX = 999
-
-// Minimal subset of OpenCode auth.json's openai OAuth entry required by this plugin.
-type OpenAIAuth = { type: "oauth"; access: string; accountId?: string }
-
-type GenerateArgs = {
-  prompt: string
-  out: string
-  quality: "low" | "medium" | "high" | "auto"
-  size?: string
-  images?: string[]
-}
 
 async function readImageAsDataUrl(filePath: string, ctxDir: string): Promise<string> {
   const abs = path.isAbsolute(filePath) ? filePath : path.resolve(ctxDir, filePath)
