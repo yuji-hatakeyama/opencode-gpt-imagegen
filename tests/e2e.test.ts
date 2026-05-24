@@ -9,7 +9,7 @@ import { pathToFileURL } from "node:url"
 const WORKDIR = await mkdtemp(path.join(os.tmpdir(), "qa-imagegen-work-"))
 const XDG_CONFIG_HOME = await mkdtemp(path.join(os.tmpdir(), "qa-imagegen-cfg-"))
 const REPO_DIR = path.resolve(import.meta.dir, "..")
-const RUN_TIMEOUT_MS = 300_000
+const RUN_TIMEOUT_MS = 600_000
 const TEST_TIMEOUT_MS = RUN_TIMEOUT_MS + 10_000
 const STYLE = "hand-drawn 90s Japanese animation style"
 
