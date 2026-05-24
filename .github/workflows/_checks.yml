@@ -14,3 +14,5 @@ jobs:
       - run: bun install --frozen-lockfile
       - run: bun run typecheck
       - run: bunx biome ci .
+      # e2e is gated behind RUN_E2E (needs ChatGPT OAuth + real generations), so this runs unit tests only.
+      - run: bun test
