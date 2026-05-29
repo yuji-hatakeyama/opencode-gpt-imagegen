@@ -35,7 +35,7 @@ OpenCode auto-installs the package via Bun on next launch — no separate `npm i
 
 ## Usage
 
-Just ask your agent in natural language and `gpt_image_gen` will be picked up.
+Just ask your agent in natural language and `gpt_imagegen` will be picked up.
 
 The three examples below are the **actual outputs of this repo's e2e test suite** — see [`tests/e2e.test.ts`](./tests/e2e.test.ts) for the exact prompts and assertions.
 
@@ -47,7 +47,7 @@ The three examples below are the **actual outputs of this repo's e2e test suite*
 
 ### Example B — auto-versioning
 
-`gpt_image_gen` never overwrites an existing file: when the `out` path is already taken, it picks `-v2`, `-v3`, … instead.
+`gpt_imagegen` never overwrites an existing file: when the `out` path is already taken, it picks `-v2`, `-v3`, … instead.
 
 > Now do the same path but make it a woman in a yellow yukata holding a red wagasa, in a moonlit garden with fireflies. Landscape 1536x1024.
 
@@ -67,7 +67,7 @@ Pass any number of image paths via the `images` argument and the model uses them
 
 | Version | Auth path | Scope | Status |
 |---|---|---|---|
-| **v0.1.0** | ChatGPT subscription | `gpt_image_gen` with optional reference images (generation + reference-guided edits via prompting) | **Released** |
+| **v0.1.0** | ChatGPT subscription | `gpt_imagegen` with optional reference images (generation + reference-guided edits via prompting) | **Released** |
 | **v0.2.0** | OpenAI API key | Adds the API-key billing path: both `generate` (`/v1/images/generations`) and `edit` (`/v1/images/edits`) with reference images | Next |
 | **v0.3.0** | OpenAI API key | Adds **pixel-precise mask inpainting** via `/v1/images/edits` (binary PNG alpha mask) | Planned |
 
