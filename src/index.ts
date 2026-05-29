@@ -8,13 +8,13 @@ import { saveGeneratedImage } from "./output-image"
 const GptImagePlugin: Plugin = async (_input: PluginInput): Promise<Hooks> => {
   return {
     tool: {
-      gpt_image_gen: tool({
+      gpt_imagegen: tool({
         description: [
           "Generate raster images using OpenAI's hosted image_generation tool.",
           "Use for AI-created bitmap visuals such as photos, illustrations, textures, sprites, and mockups.",
           "Do not use when the task is better handled by editing existing SVG/vector/code-native assets, extending an established icon or logo system, or building the visual directly in HTML/CSS/canvas.",
           "Reference images may be attached through `images`; label each image's role inline in `prompt`, for example: 'Image 1: reference image'.",
-          "For many distinct assets, invoke gpt_image_gen once per requested asset rather than relying on multi-image output; gpt_image_gen returns one image per call.",
+          "For many distinct assets, invoke gpt_imagegen once per requested asset rather than relying on multi-image output; gpt_imagegen returns one image per call.",
           "Requires OpenCode to be authenticated with ChatGPT OAuth. Returns the absolute path of the saved PNG.",
         ].join(" "),
         // https://developers.openai.com/api/docs/guides/image-generation
