@@ -11,7 +11,7 @@ mkdirSync(path.dirname(AUTH_FILE), { recursive: true })
 // process — tests/e2e.test.ts spawns opencode with ...process.env.
 const ORIGINAL_XDG_DATA_HOME = process.env.XDG_DATA_HOME
 const ORIGINAL_AUTH_CONTENT = process.env.OPENCODE_AUTH_CONTENT
-let loadOpenAIAuth: typeof import("../src/auth").loadOpenAIAuth
+let loadOpenAIAuth: typeof import("../../src/auth").loadOpenAIAuth
 
 function restoreEnv(key: string, value: string | undefined): void {
   if (value === undefined) {
@@ -25,7 +25,7 @@ beforeAll(async () => {
   // xdg-basedir captures XDG_DATA_HOME at import, so point it at the temp dir before
   // importing the module under test (which transitively imports xdg-basedir).
   process.env.XDG_DATA_HOME = XDG
-  loadOpenAIAuth = (await import("../src/auth")).loadOpenAIAuth
+  loadOpenAIAuth = (await import("../../src/auth")).loadOpenAIAuth
 })
 
 afterAll(() => {

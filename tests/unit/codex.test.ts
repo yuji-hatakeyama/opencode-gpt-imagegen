@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, mock, test } from "bun:test"
-import { callViaCodexResponses, parseImageGenerationResultFromSSE } from "../src/codex"
-import type { GenerateArgs } from "../src/types"
+import { callViaCodexResponses, parseImageGenerationResultFromSSE } from "../../src/codex"
+import type { GenerateArgs } from "../../src/types"
 
 // Build a ReadableStream that emits the given raw SSE text, as the fetch body would.
 function sseStream(...chunks: string[]): ReadableStream<Uint8Array> {
