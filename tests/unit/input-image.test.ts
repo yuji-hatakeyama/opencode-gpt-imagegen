@@ -2,7 +2,7 @@ import { afterEach, beforeEach, describe, expect, test } from "bun:test"
 import { mkdtemp, rm, writeFile } from "node:fs/promises"
 import os from "node:os"
 import path from "node:path"
-import { readReferenceImages } from "../src/input-image"
+import { readReferenceImages } from "../../src/input-image"
 
 // A 1x1 transparent PNG; file-type recognizes it from the header bytes.
 const PNG = Buffer.from(
