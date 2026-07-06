@@ -57,6 +57,12 @@ describe("parseImageGenerationResultFromSSE", () => {
     expect(await parseImageGenerationResultFromSSE(stream)).toBe("RESULT")
   })
 
+  test("ignores an image_generation_call whose result is an empty string", async () => {
+    // An empty result would decode to a 0-byte file and be reported as success; skip it.
+    const stream = sseStream(imageDoneEvent(""), imageDoneEvent("RESULT"))
+    expect(await parseImageGenerationResultFromSSE(stream)).toBe("RESULT")
+  })
+
   test("throws when the stream contains no image_generation result", async () => {
     const stream = sseStream(dataEvent({ type: "response.created" }), "data: [DONE]\n\n")
     expect(parseImageGenerationResultFromSSE(stream)).rejects.toThrow(
