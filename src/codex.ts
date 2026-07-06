@@ -27,7 +27,9 @@ export async function parseImageGenerationResultFromSSE(stream: ReadableStream<U
       if (
         json.type === "response.output_item.done" &&
         json.item?.type === "image_generation_call" &&
-        typeof json.item.result === "string"
+        typeof json.item.result === "string" &&
+        // Reject an empty result: decoding it would write a 0-byte file and report success.
+        json.item.result.length > 0
       ) {
         return json.item.result
       }
