@@ -13,7 +13,6 @@ const SUBSCRIPTION_MODEL = "gpt-5.5"
 type CodexSSEEvent = {
   type?: string
   item?: { type?: string; result?: string }
-  result?: string
 }
 
 export async function parseImageGenerationResultFromSSE(stream: ReadableStream<Uint8Array>): Promise<string> {
