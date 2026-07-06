@@ -3,16 +3,7 @@ import { mkdtemp, rm, writeFile } from "node:fs/promises"
 import os from "node:os"
 import path from "node:path"
 import { readReferenceImages } from "../../src/input-image"
-
-// A 1x1 transparent PNG; file-type recognizes it from the header bytes.
-const PNG = Buffer.from(
-  "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==",
-  "base64",
-)
-
-function dataUrl(buf: Buffer): string {
-  return `data:image/png;base64,${buf.toString("base64")}`
-}
+import { pngDataUrl as dataUrl, PNG_BUFFER as PNG } from "./fixtures"
 
 let dir: string
 

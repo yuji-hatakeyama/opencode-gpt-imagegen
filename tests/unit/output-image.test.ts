@@ -4,6 +4,7 @@ import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises"
 import os from "node:os"
 import path from "node:path"
 import { buildSavedMessage, pickNonOverwritePath, saveGeneratedImage } from "../../src/output-image"
+import { PNG_BASE64, PNG_BUFFER } from "./fixtures"
 
 let dir: string
 
@@ -15,12 +16,9 @@ afterEach(async () => {
   await rm(dir, { recursive: true, force: true })
 })
 
-// A 1x1 transparent PNG, base64-encoded; just enough to round-trip through saveGeneratedImage.
-const PNG_BASE64 = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg=="
-
 // Place a real PNG at the path so it is occupied; pickNonOverwritePath only checks existence.
 function occupy(p: string): Promise<void> {
-  return writeFile(p, Buffer.from(PNG_BASE64, "base64"))
+  return writeFile(p, PNG_BUFFER)
 }
 
 describe("pickNonOverwritePath", () => {
@@ -82,7 +80,7 @@ describe("saveGeneratedImage", () => {
     expect(result.savedPath).toBe(path.join(dir, "image.png"))
     expect(result.versioned).toBe(false)
     const written = await readFile(result.savedPath)
-    expect(written.equals(Buffer.from(PNG_BASE64, "base64"))).toBe(true)
+    expect(written.equals(PNG_BUFFER)).toBe(true)
   })
 
   test("resolves a relative path against the context directory", async () => {
