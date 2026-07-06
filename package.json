@@ -20,7 +20,7 @@
     "prebuild": "rm -rf dist",
     "build": "bun build ./src/index.ts --outdir ./dist --target node --format esm --packages external",
     "test": "bun test tests/unit",
-    "test:e2e_subscription": "OPENCODE_MODEL=openai/gpt-5.5 bun test tests/e2e/subscription.test.ts",
+    "test:e2e_subscription": "OPENCODE_MODEL=openai/gpt-5.5 bun test --bail tests/e2e/subscription.test.ts",
     "prepublishOnly": "bun run build",
     "release:patch": "bash scripts/prepare-release.sh patch && git push --follow-tags",
     "release:minor": "bash scripts/prepare-release.sh minor && git push --follow-tags",
