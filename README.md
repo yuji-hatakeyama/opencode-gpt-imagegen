@@ -17,7 +17,7 @@
 ## Highlights
 
 - **Subscription-friendly.** Generations ride on the same Codex backend channel OpenCode already uses for ChatGPT subscription chat — billed against your ChatGPT plan, not your API credits.
-- **Reference images.** Pass any number of input images alongside the prompt for style guidance, edit targets, or compositing inputs.
+- **Reference images.** Pass up to 5 input images alongside the prompt for style guidance, edit targets, or compositing inputs — or reuse the last images generated in the session.
 
 ## Installation
 
@@ -56,7 +56,7 @@ The previous `character.png` is left untouched; the new image lands at `characte
 
 ### Example C — feed existing image files as input
 
-Pass any number of image paths via the `images` argument and the model uses them as references for the next generation — for style guidance, characters to keep, scenes to extend, and so on.
+Pass up to 5 image paths via the `referenced_image_paths` argument and the model uses them as references for the next generation — for style guidance, characters to keep, scenes to extend, and so on. Images generated earlier in the same session can also be reused without paths via `num_last_images_to_include`.
 
 > Take `character.png` and `character-v2.png` and put both characters together on the engawa of an old Japanese house, smiling at the viewer. 2048x1152, same 90s anime style.
 
@@ -72,10 +72,10 @@ Pass any number of image paths via the `images` argument and the model uses them
 
 ## How it works
 
-OpenCode already talks to the OpenAI Codex backend to power ChatGPT subscription chat. This plugin reuses that same endpoint, attaching the hosted `image_generation` tool to a single-turn request, then writes the returned PNG to disk. Auth is read from OpenCode's standard `auth.json`; no new credential surface is introduced.
+OpenCode already talks to the OpenAI Codex backend to power ChatGPT subscription chat. This plugin calls that backend's images endpoint (`images/generations` / `images/edits`) with the `gpt-image-2` model — the same way the codex CLI's image generation extension does — then writes the returned PNG to disk. Auth is read from OpenCode's standard `auth.json`; no new credential surface is introduced.
 
 ## Disclaimer
 
 This is an **unofficial, third-party** plugin, not affiliated with or endorsed by OpenAI or OpenCode.
 
-It uses the same Codex backend endpoint OpenCode itself calls for ChatGPT subscription chat — this plugin just adds the hosted `image_generation` tool to that conversation. Use must comply with OpenAI's [Terms of Use](https://openai.com/policies/row-terms-of-use/) and [Usage Policies](https://openai.com/policies/usage-policies/).
+It uses the same Codex backend images endpoint the codex CLI itself calls for image generation on a ChatGPT subscription. Use must comply with OpenAI's [Terms of Use](https://openai.com/policies/row-terms-of-use/) and [Usage Policies](https://openai.com/policies/usage-policies/).
