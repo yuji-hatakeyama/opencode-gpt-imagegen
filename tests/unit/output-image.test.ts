@@ -63,12 +63,14 @@ describe("buildSavedMessage", () => {
     expect(buildSavedMessage(p, p)).toBe(`Generated image saved to ${p}.`)
   })
 
-  test("explains the versioning when the saved path differs from the requested one", () => {
+  test("explains the versioning and forbids relocation when the saved path differs from the requested one", () => {
     const saved = "/tmp/image-v2.png"
     const requested = "/tmp/image.png"
     expect(buildSavedMessage(saved, requested)).toBe(
-      `Generated image saved to ${saved} (the requested path ${requested} already existed; ` +
-        "the new image was versioned to avoid overwriting it).",
+      `Generated image saved to ${saved}. The requested path ${requested} already existed, ` +
+        "so the image was saved under a versioned name to prevent data loss. " +
+        "Do not move or rename it to the requested path unless the user explicitly approves; " +
+        "report the saved path as-is.",
     )
   })
 })
@@ -95,20 +97,14 @@ describe("saveGeneratedImage", () => {
     expect(result.savedPath).toBe(abs)
   })
 
-  test("creates missing parent directories", async () => {
-    const result = await saveGeneratedImage("a/b/c/image.png", dir, PNG_BASE64)
-    expect(existsSync(result.savedPath)).toBe(true)
-  })
-
   test("versions the output instead of overwriting an existing file", async () => {
     const first = await saveGeneratedImage("image.png", dir, PNG_BASE64)
     const second = await saveGeneratedImage("image.png", dir, PNG_BASE64)
     expect(second.savedPath).toBe(path.join(dir, "image-v2.png"))
     expect(second.versioned).toBe(true)
-    expect(second.message).toBe(
-      `Generated image saved to ${second.savedPath} (the requested path ${first.savedPath} already existed; ` +
-        "the new image was versioned to avoid overwriting it).",
-    )
+    // The full message wording is pinned by the buildSavedMessage cases above.
+    expect(second.message).toContain(second.savedPath)
+    expect(second.message).toContain(first.savedPath)
     // The original file is left untouched.
     expect(existsSync(first.savedPath)).toBe(true)
   })

@@ -28,11 +28,15 @@ export async function pickNonOverwritePath(requested: string, maxVersion = MAX_O
 }
 
 export function buildSavedMessage(savedPath: string, requestedPath: string): string {
+  // The note is prescriptive on purpose: agentic callers otherwise "fix" the
+  // path deviation with mv/rm, defeating the non-overwrite guarantee.
   const versionNote =
     savedPath !== requestedPath
-      ? ` (the requested path ${requestedPath} already existed; the new image was versioned to avoid overwriting it)`
+      ? ` The requested path ${requestedPath} already existed, so the image was saved under a versioned name` +
+        " to prevent data loss. Do not move or rename it to the requested path unless the user explicitly" +
+        " approves; report the saved path as-is."
       : ""
-  return `Generated image saved to ${savedPath}${versionNote}.`
+  return `Generated image saved to ${savedPath}.${versionNote}`
 }
 
 type SaveResult = { savedPath: string; versioned: boolean; message: string }
