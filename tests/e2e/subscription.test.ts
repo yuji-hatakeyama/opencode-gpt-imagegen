@@ -78,6 +78,20 @@ function readPngDimensions(buf: Buffer): { width: number; height: number } {
   return { width: buf.readUInt32BE(16), height: buf.readUInt32BE(20) }
 }
 
+function assertDimensions(buf: Buffer, expectedWidth: number, expectedHeight: number): void {
+  const { width, height } = readPngDimensions(buf)
+  // The backend model occasionally transposes the requested orientation. The `size` string is
+  // passed correctly, so a swapped result is a known real-API flake, not a plugin regression — re-run.
+  if (width === expectedHeight && height === expectedWidth) {
+    throw new Error(
+      `expected ${expectedWidth}x${expectedHeight} but got ${width}x${height} (orientation transposed); ` +
+        `the model occasionally swaps width/height — known flake, re-run the e2e`,
+    )
+  }
+  expect(width).toBe(expectedWidth)
+  expect(height).toBe(expectedHeight)
+}
+
 describe("gpt_imagegen e2e (subscription)", () => {
   beforeAll(async () => {
     console.log(`WORKDIR: ${WORKDIR}`)
@@ -96,9 +110,7 @@ describe("gpt_imagegen e2e (subscription)", () => {
       )
       const out = path.join(WORKDIR, "character.png")
       const buf = await assertPng(out)
-      const { width, height } = readPngDimensions(buf)
-      expect(width).toBe(1024)
-      expect(height).toBe(1536)
+      assertDimensions(buf, 1024, 1536)
       console.log(`A: ${out}`)
     },
     TEST_TIMEOUT_MS,
@@ -114,9 +126,7 @@ describe("gpt_imagegen e2e (subscription)", () => {
       )
       const out = path.join(WORKDIR, "character-v2.png")
       const buf = await assertPng(out)
-      const { width, height } = readPngDimensions(buf)
-      expect(width).toBe(1536)
-      expect(height).toBe(1024)
+      assertDimensions(buf, 1536, 1024)
       console.log(`B: ${out}`)
     },
     TEST_TIMEOUT_MS,
