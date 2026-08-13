@@ -1,3 +1,6 @@
+
+</think>
+
 # opencode-gpt-imagegen
 
 <p align="center"><img src="./ogp.png" alt="opencode-gpt-imagegen × gpt-image-2" /></p>
@@ -11,7 +14,7 @@
 
 | Auth path | Status | Billing |
 |---|---|---|
-| **ChatGPT subscription** (OAuth) | **Available now in v0.1.0** | **No extra cost** — comes out of your existing Plus / Pro / Business plan |
+| **ChatGPT subscription** (OAuth) | **Available now in v0.1.9** | **No extra cost** — comes out of your existing Plus / Pro / Business plan |
 | **OpenAI API key** | **Coming soon in v0.2.0** | Pay-per-image against your API credits, with `generate` + `edit` support |
 
 ## Highlights
@@ -66,7 +69,7 @@ Pass any number of image paths via the `images` argument and the model uses them
 
 | Version | Auth path | Scope | Status |
 |---|---|---|---|
-| **v0.1.0** | ChatGPT subscription | `gpt_imagegen` with optional reference images (generation + reference-guided edits via prompting) | **Released** |
+| **v0.1.9** | ChatGPT subscription | `gpt_imagegen` with optional reference images (generation + reference-guided edits via prompting) | **Released** |
 | **v0.2.0** | OpenAI API key | Adds the API-key billing path: both `generate` (`/v1/images/generations`) and `edit` (`/v1/images/edits`) with reference images | Next |
 | **v0.3.0** | OpenAI API key | Adds **pixel-precise mask inpainting** via `/v1/images/edits` (binary PNG alpha mask) | Planned |
 
