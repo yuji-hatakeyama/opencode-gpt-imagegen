@@ -63,7 +63,7 @@
     "typescript": "^7.0.2"
   },
   "dependencies": {
-    "eventsource-parser": "^3.0.8",
+    "eventsource-parser": "^4.0.0",
     "file-type": "^22.0.1",
     "xdg-basedir": "^5.1.0"
   }
