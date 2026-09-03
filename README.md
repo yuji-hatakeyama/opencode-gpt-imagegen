@@ -78,7 +78,7 @@ OpenCode already talks to the OpenAI Codex backend to power ChatGPT subscription
 
 Reference image paths are intentionally not restricted: files that you explicitly select can live anywhere you have access to them. Each selected reference image is uploaded to the ChatGPT Codex backend with the generation request.
 
-The plugin cannot reliably distinguish a human-selected path from a path proposed by an agent. When agents may process untrusted repository content or prompts, use OpenCode's host-level tool permissions or confirmation flow before allowing a reference-image read. Do not rely on a tool argument such as `confirmed: true`; an agent can set it itself.
+The plugin cannot reliably distinguish a human-selected path from a path proposed by an agent. When agents may process untrusted repository content or prompts, use a host-level permission or confirmation mechanism before allowing a reference-image read. Do not rely on a tool argument such as `confirmed: true`; an agent can set it itself.
 
 Generated images use exclusive file creation, so concurrent calls that request the same output path preserve existing files and receive versioned names instead.
 
