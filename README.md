@@ -82,8 +82,6 @@ The plugin cannot reliably distinguish a human-selected path from a path propose
 
 Generated images use exclusive file creation, so concurrent calls that request the same output path preserve existing files and receive versioned names instead.
 
-See [the low-risk hardening plan](./SECURITY-HARDENING-PLAN.md) for the scope of the current safeguards and the host-level work still needed.
-
 ## Disclaimer
 
 This is an **unofficial, third-party** plugin, not affiliated with or endorsed by OpenAI or OpenCode.
