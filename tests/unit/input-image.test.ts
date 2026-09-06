@@ -29,6 +29,22 @@ describe("readReferenceImages", () => {
     expect(await readReferenceImages(["ref.png"], dir)).toEqual([dataUrl(PNG)])
   })
 
+  test("preserves HTTP and HTTPS URLs for provider-side fetching", async () => {
+    const urls = ["https://cdn.example.test/ref.webp", "http://localhost:8080/ref.png"]
+    expect(await readReferenceImages(urls, dir)).toEqual(urls)
+  })
+
+  test("preserves image data URIs", async () => {
+    const reference = dataUrl(PNG)
+    expect(await readReferenceImages([reference], dir)).toEqual([reference])
+  })
+
+  test("rejects unsupported URL protocols", async () => {
+    expect(readReferenceImages(["ftp://example.test/ref.png"], dir)).rejects.toThrow(
+      "unsupported reference image URL protocol: ftp:",
+    )
+  })
+
   // The MIME type comes from file-type's content sniffing, not the extension, so cover a
   // few non-PNG formats to confirm the detected type (not a hard-coded "image/png") is used.
   // Each case is a minimal header file-type recognizes from its magic bytes.
