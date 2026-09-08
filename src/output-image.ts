@@ -38,7 +38,7 @@ export function buildSavedMessage(savedPath: string, requestedPath: string): str
 type SaveResult = { savedPath: string; versioned: boolean; message: string }
 
 // Resolve the output path (relative to ctxDir unless absolute), then write the
-// decoded PNG. Avoiding an overwrite is best-effort: the collision check and the
+// decoded image. Avoiding an overwrite is best-effort: the collision check and the
 // write are not atomic, so a concurrent writer racing between them could still be
 // clobbered. Returns the user-facing message alongside the saved path.
 export async function saveGeneratedImage(out: string, ctxDir: string, base64: string): Promise<SaveResult> {

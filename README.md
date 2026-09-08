@@ -18,6 +18,7 @@
 
 - **Subscription-friendly.** Generations ride on the same Codex backend channel OpenCode already uses for ChatGPT subscription chat — billed against your ChatGPT plan, not your API credits.
 - **Reference images.** Pass any number of input images alongside the prompt for style guidance, edit targets, or compositing inputs.
+- **WebP by default.** Generate smaller WebP files by default, or request PNG with `output_format: "png"`.
 
 ## Installation
 
@@ -36,11 +37,13 @@ OpenCode auto-installs the package via Bun on next launch — no separate `npm i
 
 Just ask your agent in natural language and `gpt_imagegen` will be picked up.
 
+The tool writes WebP by default. Use a `.webp` output path, or pass `output_format: "png"` with a `.png` path when PNG is required.
+
 The three examples below are the **actual outputs of this repo's e2e test suite** — see [`tests/e2e/subscription.test.ts`](./tests/e2e/subscription.test.ts) for the exact prompts and assertions.
 
 ### Example A — generate
 
-> Draw a man in a navy samue with a red hachimaki, standing in a garden full of cherry blossoms. 90s anime style. Save it as `character.png`, portrait 1024x1536.
+> Draw a man in a navy samue with a red hachimaki, standing in a garden full of cherry blossoms. 90s anime style. Save it as `character.png`, portrait 1024x1536, with `output_format: "png"`.
 
 <p align="center"><img src="./assets/character.png" alt="Example A output: man in samue, portrait" width="320" /></p>
 
@@ -48,7 +51,7 @@ The three examples below are the **actual outputs of this repo's e2e test suite*
 
 `gpt_imagegen` never overwrites an existing file: when the `out` path is already taken, it picks `-v2`, `-v3`, … instead.
 
-> Now do the same path but make it a woman in a yellow yukata holding a red wagasa, in a moonlit garden with fireflies. Landscape 1536x1024.
+> Now do the same path with `output_format: "png"`, but make it a woman in a yellow yukata holding a red wagasa, in a moonlit garden with fireflies. Landscape 1536x1024.
 
 The previous `character.png` is left untouched; the new image lands at `character-v2.png`.
 
@@ -58,7 +61,7 @@ The previous `character.png` is left untouched; the new image lands at `characte
 
 Pass any number of image paths via the `images` argument and the model uses them as references for the next generation — for style guidance, characters to keep, scenes to extend, and so on.
 
-> Take `character.png` and `character-v2.png` and put both characters together on the engawa of an old Japanese house, smiling at the viewer. 2048x1152, same 90s anime style.
+> Take `character.png` and `character-v2.png` and put both characters together on the engawa of an old Japanese house, smiling at the viewer. 2048x1152, same 90s anime style, with `output_format: "png"`.
 
 <p align="center"><img src="./assets/together.png" alt="Example C output: both characters composed onto an engawa" width="640" /></p>
 
@@ -72,7 +75,7 @@ Pass any number of image paths via the `images` argument and the model uses them
 
 ## How it works
 
-OpenCode already talks to the OpenAI Codex backend to power ChatGPT subscription chat. This plugin reuses that same endpoint, attaching the hosted `image_generation` tool to a single-turn request, then writes the returned PNG to disk. Auth is read from OpenCode's standard `auth.json`; no new credential surface is introduced.
+OpenCode already talks to the OpenAI Codex backend to power ChatGPT subscription chat. This plugin reuses that same endpoint, attaching the hosted `image_generation` tool to a single-turn request, then writes the returned WebP or PNG to disk. Auth is read from OpenCode's standard `auth.json`; no new credential surface is introduced.
 
 ## Disclaimer
 

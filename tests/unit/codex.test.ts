@@ -82,7 +82,13 @@ describe("callViaCodexResponses", () => {
     globalThis.fetch = fetchMock as unknown as typeof fetch
 
     const auth = { type: "oauth", access: "tok", accountId: "acct" } as const
-    const args: GenerateArgs = { prompt: "a cat", out: "cat.png", quality: "high", size: "1024x1024" }
+    const args: GenerateArgs = {
+      prompt: "a cat",
+      out: "cat.png",
+      quality: "high",
+      output_format: "png",
+      size: "1024x1024",
+    }
     const result = await callViaCodexResponses(auth, args, ["data:image/png;base64,AAA"])
 
     expect(result).toBe("PARSED")
@@ -122,14 +128,27 @@ describe("callViaCodexResponses", () => {
     globalThis.fetch = fetchMock as unknown as typeof fetch
 
     const auth = { type: "oauth", access: "tok" } as const
-    const args: GenerateArgs = { prompt: "a cat", out: "cat.png", quality: "auto" }
+    const args: GenerateArgs = { prompt: "a cat", out: "cat.webp", quality: "auto" }
     await callViaCodexResponses(auth, args, [])
 
     const [, init] = fetchMock.mock.calls[0]
     expect(init.headers as Record<string, string>).not.toHaveProperty("ChatGPT-Account-Id")
     const body = JSON.parse(init.body as string)
     expect(body.tools[0]).not.toHaveProperty("size")
+    expect(body.tools[0].output_format).toBe("webp")
     expect(body.input[0].content).toEqual([{ type: "input_text", text: "a cat" }])
+  })
+
+  test.each([
+    [{ prompt: "a cat", out: "cat.png", quality: "auto" } satisfies GenerateArgs, ".webp"],
+    [{ prompt: "a cat", out: "cat.webp", quality: "auto", output_format: "png" } satisfies GenerateArgs, ".png"],
+  ])("rejects an output path that does not match the format", async (args, expectedExtension) => {
+    const fetchMock = mock(async (_url: string, _init: RequestInit) => new Response(imageDoneEvent("PARSED")))
+    globalThis.fetch = fetchMock as unknown as typeof fetch
+
+    const auth = { type: "oauth", access: "tok" } as const
+    expect(callViaCodexResponses(auth, args, [])).rejects.toThrow(`out must use a ${expectedExtension} extension`)
+    expect(fetchMock).not.toHaveBeenCalled()
   })
 
   test("throws with the status and response body when the request fails", async () => {
@@ -137,7 +156,7 @@ describe("callViaCodexResponses", () => {
     globalThis.fetch = fetchMock as unknown as typeof fetch
 
     const auth = { type: "oauth", access: "tok" } as const
-    const args: GenerateArgs = { prompt: "a cat", out: "cat.png", quality: "auto" }
+    const args: GenerateArgs = { prompt: "a cat", out: "cat.webp", quality: "auto" }
     expect(callViaCodexResponses(auth, args, [])).rejects.toThrow("codex responses request failed: 500 upstream boom")
   })
 })

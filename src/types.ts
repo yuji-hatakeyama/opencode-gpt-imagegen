@@ -5,6 +5,7 @@ export type GenerateArgs = {
   prompt: string
   out: string
   quality: "low" | "medium" | "high" | "auto"
+  output_format?: "png" | "webp"
   size?: string
   images?: string[]
 }

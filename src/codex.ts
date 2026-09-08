@@ -1,3 +1,4 @@
+import * as path from "node:path"
 import { EventSourceParserStream } from "eventsource-parser/stream"
 import type { GenerateArgs, OpenAIAuth } from "./types"
 
@@ -44,6 +45,11 @@ export async function callViaCodexResponses(
   args: GenerateArgs,
   inputImageDataUrls: string[],
 ): Promise<string> {
+  const outputFormat = args.output_format ?? "webp"
+  if (path.extname(args.out).toLowerCase() !== `.${outputFormat}`) {
+    throw new Error(`out must use a .${outputFormat} extension`)
+  }
+
   const userContent: Array<Record<string, unknown>> = [{ type: "input_text", text: args.prompt }]
   for (const dataUrl of inputImageDataUrls) {
     userContent.push({ type: "input_image", image_url: dataUrl })
@@ -60,7 +66,7 @@ export async function callViaCodexResponses(
     tools: [
       {
         type: "image_generation",
-        output_format: "png",
+        output_format: outputFormat,
         quality: args.quality,
         ...(args.size ? { size: args.size } : {}),
       },
