@@ -80,19 +80,7 @@ describe("readReferenceImages", () => {
     await writeFile(path.join(dir, "present.png"), PNG)
     const missing = path.join(dir, "missing.png")
     await expect(readReferenceImages(["present.png", "missing.png"], dir)).rejects.toThrow(
-      `unable to read referenced image at \`${missing}\`: `,
+      `unable to read referenced image at \`${missing}\`: ENOENT`,
     )
-  })
-
-  // OpenCode does not validate tool args against the zod schema, so the cap must hold here.
-  test("accepts exactly the maximum of 5 images", async () => {
-    await writeFile(path.join(dir, "ref.png"), PNG)
-    const paths = Array.from({ length: 5 }, () => "ref.png")
-    expect(await readReferenceImages(paths, dir)).toHaveLength(5)
-  })
-
-  test("rejects more than 5 images before reading any file", async () => {
-    const paths = Array.from({ length: 6 }, (_, i) => `missing-${i}.png`)
-    await expect(readReferenceImages(paths, dir)).rejects.toThrow("`images` must contain at most 5 paths")
   })
 })

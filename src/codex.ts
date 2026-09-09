@@ -1,5 +1,5 @@
 import { setTimeout as delay } from "node:timers/promises"
-import type { GenerateArgs, OpenAIAuth } from "./types"
+import type { OpenAIAuth } from "./types"
 
 // Codex backend base URL used for ChatGPT (subscription) auth.
 // https://github.com/openai/codex/blob/c77c34ed33877a6e5b3759703d01d3b223274cbf/codex-rs/model-provider-info/src/lib.rs#L43
@@ -10,9 +10,8 @@ const CODEX_BASE_URL = "https://chatgpt.com/backend-api/codex"
 const IMAGE_MODEL = "gpt-image-2"
 export const MAX_EDIT_IMAGES = 5
 
-// The size argument grammar, shared with the tool schema in index.ts. The capture
-// groups are what withSizeNote interprets, so acceptance and parsing cannot drift apart.
-// Zero dimensions are excluded so a bogus "0x0" is not forwarded into the prompt.
+// The size argument grammar, enforced by the tool schema in index.ts. The capture groups
+// are what withSizeNote interprets, so acceptance and parsing cannot drift apart.
 export const SIZE_ARG_PATTERN = /^(?:auto|([1-9]\d*)x([1-9]\d*))$/
 
 // https://github.com/openai/codex/blob/c77c34ed33877a6e5b3759703d01d3b223274cbf/codex-rs/model-provider-info/src/lib.rs#L31
@@ -21,12 +20,17 @@ const REQUEST_MAX_RETRIES = 4
 const RETRY_BASE_DELAY_MS = 200
 
 // Retry on 5xx and transport errors only (429 and other 4xx are not retried), like codex's
-// run_with_retry; every fetch rejection is treated as a transport error and rethrown raw
-// once the retries are exhausted — wrapping is the caller's job, as in codex. The backoff
-// rejects on abort, matching codex where dropping the retry future cancels the wait.
+// run_with_retry; every fetch rejection is treated as a transport error (ADR 0001 #8) and
+// rethrown raw once the retries are exhausted — wrapping is the caller's job, as in codex.
+// The backoff rejects on abort, matching codex where dropping the retry future cancels the wait.
+// baseDelayMs is overridable only so tests can skip the real backoff waits.
 // https://github.com/openai/codex/blob/c77c34ed33877a6e5b3759703d01d3b223274cbf/codex-rs/codex-client/src/retry.rs#L22-L48
 // https://github.com/openai/codex/blob/c77c34ed33877a6e5b3759703d01d3b223274cbf/codex-rs/codex-client/src/retry.rs#L80-L107
-async function postWithRetry(url: string, init: RequestInit, baseDelayMs: number): Promise<Response> {
+export async function postWithRetry(
+  url: string,
+  init: RequestInit,
+  baseDelayMs = RETRY_BASE_DELAY_MS,
+): Promise<Response> {
   for (let attempt = 1; ; attempt++) {
     const retriesLeft = attempt <= REQUEST_MAX_RETRIES
     try {
@@ -44,12 +48,8 @@ async function postWithRetry(url: string, init: RequestInit, baseDelayMs: number
   }
 }
 
-// The backend ignores the structured quality/size fields and derives both from the
-// prompt (codex intentionally sends "auto" for everything: "uses automatic image
-// parameters", https://github.com/openai/codex/pull/24723 — confirmed empirically on
-// 2026-07-13 and 2026-09-10, see docs/adr/0001-port-codex-images-endpoint.md: explicit
-// size in the body has no effect, while dimensions written in the prompt are honored
-// exactly). Restating WxH in the prompt is therefore the only working dimension control.
+// The backend ignores the structured size field and honors dimensions written in the
+// prompt (ADR 0001 #2), so a WIDTHxHEIGHT size is restated there; "auto" adds nothing.
 function withSizeNote(prompt: string, size?: string): string {
   const [, width, height] = size?.match(SIZE_ARG_PATTERN) ?? []
   if (!width || !height) return prompt
@@ -60,8 +60,6 @@ type CallOptions = {
   // Sent as x-codex-image-turn-id; codex uses its turn id, this plugin the OpenCode message id.
   turnId: string
   signal?: AbortSignal
-  // Injectable only so tests can skip the real backoff waits; production callers use the default.
-  retryBaseDelayMs?: number
 }
 
 // Call the Codex backend images endpoint the way codex's image generation extension does:
@@ -70,7 +68,7 @@ type CallOptions = {
 // https://github.com/openai/codex/blob/c77c34ed33877a6e5b3759703d01d3b223274cbf/codex-rs/ext/image-generation/src/tool.rs#L419-L488
 export async function callViaCodexImages(
   auth: OpenAIAuth,
-  args: Pick<GenerateArgs, "prompt" | "size">,
+  args: { prompt: string; size?: string },
   inputImageDataUrls: string[],
   opts: CallOptions,
 ): Promise<string> {
@@ -92,7 +90,7 @@ export async function callViaCodexImages(
 
   // Auth headers mirror codex's BearerAuthProvider, the turn id header its image backend.
   // codex additionally sends client metadata (User-Agent, originator=codex_cli_rs) —
-  // this plugin identifies itself as opencode instead.
+  // this plugin identifies itself as opencode instead (ADR 0001 #1).
   // https://github.com/openai/codex/blob/c77c34ed33877a6e5b3759703d01d3b223274cbf/codex-rs/model-provider/src/bearer_auth_provider.rs#L32-L46
   // https://github.com/openai/codex/blob/c77c34ed33877a6e5b3759703d01d3b223274cbf/codex-rs/ext/image-generation/src/backend.rs#L113-L122
   // https://github.com/openai/codex/blob/c77c34ed33877a6e5b3759703d01d3b223274cbf/codex-rs/login/src/auth/default_client.rs#L40
@@ -109,20 +107,19 @@ export async function callViaCodexImages(
     signal: opts.signal,
   }
 
-  // A single tool-layer wrap around the whole backend call, as in codex's tool.rs;
-  // aborts (also possible mid body read) propagate as-is. The inner layers throw
-  // codex's layer-native error strings.
+  // A single tool-layer wrap around the whole backend call, as in codex's tool.rs. An
+  // abort surfaces as the signal's own AbortError even when it interrupted the body read,
+  // where the inner layers would already have wrapped it.
   // https://github.com/openai/codex/blob/c77c34ed33877a6e5b3759703d01d3b223274cbf/codex-rs/ext/image-generation/src/tool.rs#L172-L177
   let b64: string | undefined
   try {
-    const res = await postWithRetry(`${CODEX_BASE_URL}/${path}`, init, opts.retryBaseDelayMs ?? RETRY_BASE_DELAY_MS)
-    b64 = await decodeFirstImage(res)
+    b64 = await decodeFirstImage(await postWithRetry(`${CODEX_BASE_URL}/${path}`, init))
   } catch (err) {
-    if (opts.signal?.aborted) throw err
+    if (opts.signal?.aborted) throw opts.signal.reason ?? err
     throw new Error(`image generation failed: ${err instanceof Error ? err.message : err}`)
   }
 
-  // Unlike codex, an empty string is also rejected: decoding it would write a 0-byte file.
+  // Unlike codex, an empty string is also rejected: decoding it would write a 0-byte file (ADR 0001 #7).
   // https://github.com/openai/codex/blob/c77c34ed33877a6e5b3759703d01d3b223274cbf/codex-rs/ext/image-generation/src/tool.rs#L185-L197
   if (!b64) {
     throw new Error("image generation returned no image data")
@@ -131,13 +128,10 @@ export async function callViaCodexImages(
 }
 
 // Returns the base64 of the first element of the response's `data` array, or undefined
-// when the array is empty. Errors carry codex's layer-native strings: TransportError::Http
-// displays as "http {status}: {body:?}" (status includes the reason phrase) and a decode
-// failure as "failed to decode image generation response: ..."; a missing `data` array or
-// an element without a string `b64_json` is a decode failure too (serde requires those fields).
-// Deviations: the HTTP error body is raw text truncated to 500 chars, not Rust's Debug form,
-// and the decode error omits codex's "stream error: " prefix (an ApiError::Stream artifact
-// that would mislead on a plain JSON response).
+// when the array is empty. The error strings are codex's layer-native ones (ADR 0001 #5):
+// "http {status}: {body}" with the status including the reason phrase, and "failed to
+// decode image generation response: {reason}" where the reason for a missing `data` or
+// `b64_json` mirrors serde's wording (those fields are required in codex's types).
 // https://github.com/openai/codex/blob/c77c34ed33877a6e5b3759703d01d3b223274cbf/codex-rs/http-client/src/transport.rs#L114-L131
 // https://github.com/openai/codex/blob/c77c34ed33877a6e5b3759703d01d3b223274cbf/codex-rs/http-client/src/error.rs#L10
 // https://github.com/openai/codex/blob/c77c34ed33877a6e5b3759703d01d3b223274cbf/codex-rs/codex-api/src/endpoint/images.rs#L77-L78
@@ -149,16 +143,17 @@ async function decodeFirstImage(res: Response): Promise<string | undefined> {
     throw new Error(`http ${status}: ${detail.slice(0, 500)}`)
   }
 
-  const decodeError = (reason: unknown) => new Error(`failed to decode image generation response: ${reason}`)
-  let json: { data?: Array<{ b64_json?: unknown } | null> } | null
+  const decodeError = (reason: unknown) =>
+    new Error(`failed to decode image generation response: ${reason instanceof Error ? reason.message : reason}`)
+  let json: { data?: Array<{ b64_json?: unknown }> }
   try {
     json = (await res.json()) as typeof json
   } catch (err) {
     throw decodeError(err)
   }
-  if (!Array.isArray(json?.data)) throw decodeError("missing field `data`")
+  if (!Array.isArray(json.data)) throw decodeError("missing field `data`")
   const first = json.data[0]
   if (first === undefined) return undefined
-  if (typeof first?.b64_json !== "string") throw decodeError("missing field `b64_json`")
+  if (typeof first.b64_json !== "string") throw decodeError("missing field `b64_json`")
   return first.b64_json
 }

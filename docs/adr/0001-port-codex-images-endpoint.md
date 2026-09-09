@@ -65,7 +65,7 @@ Both requests carried a non-UUID `x-codex-image-turn-id` and were accepted. Both
 1. Replace the Responses + hosted tool call with the codex images endpoint, mirroring the request above field for field: `gpt-image-2`, `background`/`quality`/`size` fixed to `auto`, `images/edits` when reference images are present.
 2. Port codex's retry policy (5 attempts, 200 ms exponential backoff with jitter, 5xx and transport errors only) and its error message layering.
 3. Send `x-codex-image-turn-id` with the OpenCode message id, since codex correlates image requests with turns this way. Keep `originator: opencode`.
-4. Keep the plugin's own tool contract where it is not part of the request mirror: `out` (save location), `size` (restated in the prompt because that is the only working dimension control), `images` (keeps its current name). Cap `images` at codex's `MAX_EDIT_IMAGES = 5`. The cap and the size grammar are enforced at runtime in the helper modules, not only in the zod schema: OpenCode (verified on 1.18.29, `packages/opencode/src/tool/registry.ts` `fromPlugin`) builds the JSON schema from the zod args to steer the model but passes the model's arguments to `execute` without validating them.
+4. Keep the plugin's own tool contract where it is not part of the request mirror: `out` (save location), `size` (restated in the prompt because that is the only working dimension control), `images` (keeps its current name). Cap `images` at codex's `MAX_EDIT_IMAGES = 5`. `execute` parses its arguments once with the zod schema before doing anything else: OpenCode (verified on 1.18.29, `packages/opencode/src/tool/registry.ts` `fromPlugin`) builds the JSON schema from the zod args to steer the model but passes the model's arguments to `execute` without validating them, so without that parse the cap and the size grammar would be hints only.
 5. Drop the `quality` argument: the backend ignores it and codex deliberately sends `auto`. Callers that still pass it are not rejected (see 4); the value is simply not read.
 6. Do not port `num_last_images_to_include`. Codex resolves it from the conversation history, which the OpenCode plugin API does not expose. This was decided by the maintainer for this ADR.
 7. Do not bump to a gpt-image-2.5 id (see above).
@@ -90,7 +90,7 @@ Everything not listed here mirrors codex at the reference commit (see the permal
 | 10 | `src/input-image.ts` | Paths may be relative (resolved against the OpenCode context dir); MIME comes from magic-byte sniffing via `file-type`; no re-encoding | Codex requires absolute paths and re-encodes non-PNG/JPEG/WebP inputs to PNG; a raster re-encoder is a heavy dependency for a plugin (known gap: GIF references are sent unconverted) |
 | 11 | `src/output-image.ts` | Saves to the caller-specified path with non-overwriting `-vN` versioning; codex saves to `generated_images/{session}/{call_id}.png` | Output placement is this plugin's own behavior |
 | 12 | `src/index.ts` (tool output) | Returns a text message + metadata; codex returns the image itself to the model | The OpenCode tool interface returns text only |
-| 13 | `src/codex.ts` (test seam) | `retryBaseDelayMs` is injectable | Bun lacks reliable timer faking; the seam lets unit tests skip real backoff waits (same precedent as `pickNonOverwritePath`'s `maxVersion`) |
+| 13 | `src/codex.ts` (test seam) | `postWithRetry` is exported with a defaulted `baseDelayMs` parameter | Bun lacks reliable timer faking; the seam lets unit tests skip real backoff waits (same precedent as `pickNonOverwritePath`'s `maxVersion`) |
 
 ## Consequences
 
@@ -104,8 +104,8 @@ Everything not listed here mirrors codex at the reference commit (see the permal
 - [x] Investigate codex at `c77c34ed` and verify the endpoint empirically
 - [x] Write this ADR
 - [x] `src/codex.ts`: images endpoint call with retry, error layering, size note (TDD via `tests/unit/codex.test.ts`)
-- [x] `src/input-image.ts`: codex error wording (the 5-image cap is enforced once, by the tool schema)
-- [x] `src/index.ts` / `src/types.ts`: schema (drop `quality`, `size` grammar, `images` max 5), turn id header
+- [x] `src/input-image.ts`: codex error wording
+- [x] `src/index.ts`: schema (drop `quality`, `size` grammar, `images` max 5) parsed once at the `execute` boundary (decision 4), turn id header
 - [x] `src/output-image.ts`: codex-style output hint in the versioned-save message
 - [x] Remove `eventsource-parser`
 - [x] README / AGENTS.md
