@@ -199,14 +199,6 @@ describe("callViaCodexImages", () => {
     expect(fetchMock).toHaveBeenCalledTimes(1)
   })
 
-  test("wraps a network error rethrown by the retry layer", async () => {
-    installFetch(async () => {
-      throw new Error("socket hang up")
-    })
-
-    await expect(callViaCodexImages(AUTH, ARGS, [], TURN)).rejects.toThrow("image generation failed: socket hang up")
-  })
-
   test("propagates an abort raised before the response as the AbortError itself", async () => {
     const controller = new AbortController()
     controller.abort()

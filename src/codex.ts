@@ -132,11 +132,9 @@ export async function callViaCodexImages(
 }
 
 // Maps a non-2xx response to an error, otherwise returns the base64 of the first element of
-// the response's `data` array (undefined when the array is empty). The error strings are
-// codex's layer-native ones (ADR 0001 #5):
-// "http {status}: {body}" with the status including the reason phrase, and "failed to
-// decode image generation response: {reason}" where the reason for a missing `data` or
-// `b64_json` mirrors serde's wording (those fields are required in codex's types).
+// the response's `data` array (undefined when the array is empty). Error strings are codex's
+// layer-native ones (ADR 0001 #5); the missing-field reasons use serde's wording because
+// `data` and `b64_json` are required in codex's types.
 // https://github.com/openai/codex/blob/c77c34ed33877a6e5b3759703d01d3b223274cbf/codex-rs/http-client/src/transport.rs#L114-L131
 // https://github.com/openai/codex/blob/c77c34ed33877a6e5b3759703d01d3b223274cbf/codex-rs/http-client/src/error.rs#L10
 // https://github.com/openai/codex/blob/c77c34ed33877a6e5b3759703d01d3b223274cbf/codex-rs/codex-api/src/endpoint/images.rs#L77-L78
@@ -150,12 +148,9 @@ async function readImageResponse(res: Response): Promise<string | undefined> {
 
   const decodeError = (reason: unknown) =>
     new Error(`failed to decode image generation response: ${reason instanceof Error ? reason.message : reason}`)
-  let json: { data?: Array<{ b64_json?: unknown } | null> } | null
-  try {
-    json = (await res.json()) as typeof json
-  } catch (err) {
+  const json: { data?: Array<{ b64_json?: unknown } | null> } | null = await res.json().catch((err: unknown) => {
     throw decodeError(err)
-  }
+  })
   if (!Array.isArray(json?.data)) throw decodeError("missing field `data`")
   const first = json.data[0]
   if (first === undefined) return undefined
