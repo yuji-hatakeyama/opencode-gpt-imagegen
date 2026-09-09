@@ -15,17 +15,14 @@ function sentBody(fetchMock: ReturnType<typeof installFetch>) {
   return JSON.parse(fetchMock.mock.calls[0][1].body as string)
 }
 
-const AUTH = { type: "oauth", access: "tok", accountId: "acct" } as const
-const ARGS = { prompt: "a cat" }
-const TURN = { turnId: "msg_1" }
-const ENDPOINT = "https://example.test/images"
-
 const originalFetch = globalThis.fetch
 afterEach(() => {
   globalThis.fetch = originalFetch
 })
 
 describe("postWithRetry", () => {
+  const ENDPOINT = "https://example.test/images"
+
   // Retries are exercised with a zero base delay so the suite does not sleep for real.
   test("retries a 5xx response and returns the response of the retry", async () => {
     const fetchMock = installFetch(async () => new Response("ok"))
@@ -113,10 +110,18 @@ describe("postWithRetry", () => {
 })
 
 describe("callViaCodexImages", () => {
+  const AUTH = { type: "oauth", access: "tok", accountId: "acct" } as const
+  const ARGS = { prompt: "a cat" }
+  const TURN = { turnId: "msg_1" }
+  // The fixed part of every request body; codex sends these values verbatim.
+  const GENERATION_BODY = { background: "auto", model: "gpt-image-2", quality: "auto", size: "auto" }
+
   test("posts a generations request and returns the first image's base64", async () => {
     const fetchMock = installFetch(async () => imageResponse("B64"))
+    const width = 1024
+    const height = 1536
 
-    const result = await callViaCodexImages(AUTH, { ...ARGS, size: "1024x1536" }, [], TURN)
+    const result = await callViaCodexImages(AUTH, { ...ARGS, size: `${width}x${height}` }, [], TURN)
 
     expect(result).toBe("B64")
     expect(fetchMock).toHaveBeenCalledTimes(1)
@@ -132,11 +137,8 @@ describe("callViaCodexImages", () => {
     expect(headers["Content-Type"]).toBe("application/json")
 
     expect(sentBody(fetchMock)).toEqual({
-      prompt: `${ARGS.prompt}\n\nOutput image size — width: 1024px, height: 1536px.`,
-      background: "auto",
-      model: "gpt-image-2",
-      quality: "auto",
-      size: "auto",
+      prompt: `${ARGS.prompt}\n\nOutput image size — width: ${width}px, height: ${height}px.`,
+      ...GENERATION_BODY,
     })
   })
 
@@ -151,10 +153,7 @@ describe("callViaCodexImages", () => {
     expect(sentBody(fetchMock)).toEqual({
       images: refs.map((image_url) => ({ image_url })),
       prompt: ARGS.prompt,
-      background: "auto",
-      model: "gpt-image-2",
-      quality: "auto",
-      size: "auto",
+      ...GENERATION_BODY,
     })
   })
 
@@ -225,20 +224,20 @@ describe("callViaCodexImages", () => {
     expect(fetchMock).toHaveBeenCalledTimes(1)
   })
 
-  test("propagates an abort raised before the response as the AbortError itself", async () => {
+  test("propagates an abort raised before the response as the signal's reason", async () => {
     const controller = new AbortController()
     controller.abort()
     const fetchMock = installFetch(async () => {
       throw controller.signal.reason
     })
 
-    await expect(callViaCodexImages(AUTH, ARGS, [], { ...TURN, signal: controller.signal })).rejects.toMatchObject({
-      name: "AbortError",
-    })
+    await expect(callViaCodexImages(AUTH, ARGS, [], { ...TURN, signal: controller.signal })).rejects.toBe(
+      controller.signal.reason,
+    )
     expect(fetchMock).toHaveBeenCalledTimes(1)
   })
 
-  test("propagates an abort raised while reading the body as the AbortError itself", async () => {
+  test("propagates an abort raised while reading the body as the signal's reason", async () => {
     const controller = new AbortController()
     // A body whose read aborts the call mid-stream, as a cancelled fetch would.
     const body = new ReadableStream<Uint8Array>({
@@ -249,8 +248,18 @@ describe("callViaCodexImages", () => {
     })
     installFetch(async () => new Response(body))
 
-    await expect(callViaCodexImages(AUTH, ARGS, [], { ...TURN, signal: controller.signal })).rejects.toMatchObject({
-      name: "AbortError",
-    })
+    const rejection = await callViaCodexImages(AUTH, ARGS, [], { ...TURN, signal: controller.signal }).catch((e) => e)
+
+    expect(rejection).toBe(controller.signal.reason)
+  })
+
+  test("propagates an abort raised during the retry backoff as the signal's reason, not the timer's", async () => {
+    const controller = new AbortController()
+    installFetch(async () => new Response("boom", { status: 503 }))
+
+    const promise = callViaCodexImages(AUTH, ARGS, [], { ...TURN, signal: controller.signal })
+    setTimeout(() => controller.abort(), 20)
+
+    expect(await promise.catch((e) => e)).toBe(controller.signal.reason)
   })
 })

@@ -121,9 +121,9 @@ export async function callViaCodexImages(
     signal: opts.signal,
   }
 
-  // A single tool-layer wrap around the whole backend call, as in codex's tool.rs. An
-  // abort surfaces as the signal's own AbortError even when it interrupted the body read,
-  // where the inner layers would already have wrapped it.
+  // A single tool-layer wrap around the whole backend call, as in codex's tool.rs. An abort
+  // surfaces as the signal's own reason: an abort during the retry backoff rejects with the
+  // timer's AbortError instead, and that must neither be wrapped nor passed through.
   // https://github.com/openai/codex/blob/c77c34ed33877a6e5b3759703d01d3b223274cbf/codex-rs/ext/image-generation/src/tool.rs#L172-L177
   let b64: string | undefined
   try {

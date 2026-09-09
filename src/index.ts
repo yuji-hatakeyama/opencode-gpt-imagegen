@@ -20,7 +20,7 @@ const generateArgs = {
     .regex(SIZE_ARG_PATTERN, "size must be `auto` or `WIDTHxHEIGHT`")
     .nullish()
     .describe(
-      "Optional image size. Use `auto` or `WIDTHxHEIGHT`. The backend supports multiples of 16px, max edge <= 3840px, long-to-short ratio <= 3:1, and total pixels between 655,360 and 8,294,400; it honors the exact size for a new image, but with reference images it keeps only the aspect ratio and picks the resolution itself.",
+      "Optional image size. Use `auto` or `WIDTHxHEIGHT`. The plugin passes it to the backend as a prompt note and does not check the range; the backend's documented range is multiples of 16px, max edge <= 3840px, long-to-short ratio <= 3:1, and total pixels between 655,360 and 8,294,400. It honors the exact size for a new image, but with reference images it keeps only the aspect ratio and picks the resolution itself.",
     ),
   images: tool.schema
     .array(tool.schema.string())
@@ -60,7 +60,7 @@ const GptImagePlugin: Plugin = async (_input: PluginInput): Promise<Hooks> => {
             throw new Error("OpenAI ChatGPT OAuth credentials not configured.")
           }
 
-          const inputImageDataUrls = await readReferenceImages(args.images ?? undefined, ctx.directory)
+          const inputImageDataUrls = await readReferenceImages(args.images ?? [], ctx.directory)
           const base64 = await callViaCodexImages(
             auth,
             { prompt: args.prompt, size: args.size ?? undefined },

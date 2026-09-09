@@ -16,10 +16,6 @@ afterEach(async () => {
 })
 
 describe("readReferenceImages", () => {
-  test("returns an empty array when given undefined", async () => {
-    expect(await readReferenceImages(undefined, dir)).toEqual([])
-  })
-
   test("returns an empty array when given an empty list", async () => {
     expect(await readReferenceImages([], dir)).toEqual([])
   })
