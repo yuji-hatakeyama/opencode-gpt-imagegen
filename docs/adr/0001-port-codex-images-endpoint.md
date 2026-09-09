@@ -111,7 +111,7 @@ Everything not listed here mirrors codex at the reference commit (see the permal
 - [x] Remove `eventsource-parser`
 - [x] README / AGENTS.md
 - [x] `bun run typecheck`, `bunx biome ci .`, `bun run test`
-- [ ] `bun run test:e2e_subscription` (first run on 2026-09-10 failed before reaching the plugin: the ChatGPT plan's 5-hour chat limit for the `gpt-5.5` session model was exhausted; rerun after reset)
+- [x] `bun run test:e2e_subscription` (passed on 2026-09-10 after the ChatGPT plan's 5-hour chat limit for the `gpt-5.5` session model reset; a first run had failed before reaching the plugin with "The usage limit has been reached")
 - [ ] simplify + code-review loop until no findings
 - [ ] Rewrite commits into reviewable units and force-push
 
