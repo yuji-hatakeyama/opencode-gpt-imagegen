@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, test } from "bun:test"
 import type { PluginInput, ToolDefinition } from "@opencode-ai/plugin"
+import { MAX_EDIT_IMAGES } from "../../src/codex"
 import plugin from "../../src/index"
 
 async function loadTool(): Promise<ToolDefinition> {
@@ -14,25 +15,27 @@ const VALID = { prompt: "a cat", out: "cat.png" }
 
 // OpenCode does not validate the model's arguments against the zod schema before calling
 // execute, so the constraints have to be enforced by the tool itself. Each case must fail
-// before any network call; the fetch guard turns a regression into a fast, offline failure
-// instead of a real request with the developer's token.
+// before any network call; the fetch guard answers a non-retried 400 so a regression fails
+// fast and offline instead of sending a real request with the developer's token.
 describe("gpt_imagegen.execute", () => {
   const originalFetch = globalThis.fetch
+  const originalAuthContent = process.env.OPENCODE_AUTH_CONTENT
   beforeEach(() => {
-    globalThis.fetch = (() => {
-      throw new Error("unexpected network call")
-    }) as unknown as typeof fetch
+    process.env.OPENCODE_AUTH_CONTENT = JSON.stringify({ openai: { type: "oauth", access: "tok" } })
+    globalThis.fetch = (async () => new Response("unexpected network call", { status: 400 })) as unknown as typeof fetch
   })
   afterEach(() => {
     globalThis.fetch = originalFetch
+    if (originalAuthContent === undefined) delete process.env.OPENCODE_AUTH_CONTENT
+    else process.env.OPENCODE_AUTH_CONTENT = originalAuthContent
   })
 
   test("rejects more reference images than the cap with the accepted bound", async () => {
     const tool = await loadTool()
-    const images = Array.from({ length: 6 }, (_, i) => `ref-${i}.png`)
+    const images = Array.from({ length: MAX_EDIT_IMAGES + 1 }, (_, i) => `ref-${i}.png`)
 
     await expect(tool.execute({ ...VALID, images }, ctx as never)).rejects.toThrow(
-      "images must contain at most 5 paths",
+      `images must contain at most ${MAX_EDIT_IMAGES} paths`,
     )
   })
 
@@ -49,10 +52,9 @@ describe("gpt_imagegen.execute", () => {
   test("treats explicit null size and images as not set", async () => {
     const tool = await loadTool()
 
-    // Validation passes, so the next failure is the guarded network call (auth is read first
-    // and may be absent in CI, so either of the two later errors proves the args were accepted).
+    // Validation passes, so the call reaches the guarded network layer.
     await expect(tool.execute({ ...VALID, size: null, images: null }, ctx as never)).rejects.toThrow(
-      /unexpected network call|OAuth credentials not configured/,
+      "image generation failed: http 400: unexpected network call",
     )
   })
 })

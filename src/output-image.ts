@@ -36,7 +36,7 @@ export function buildSavedMessage(savedPath: string, requestedPath: string): str
     savedPath !== requestedPath
       ? ` The requested path ${requestedPath} already existed and was left untouched; the new image was saved` +
         " under a versioned name instead. Do not overwrite, replace, or rename that existing file unless the" +
-        " user explicitly asks; report the saved path as-is."
+        " user explicitly asks you to overwrite or delete it; report the saved path as-is."
       : ""
   return `Generated image saved to ${savedPath}.${versionNote}`
 }

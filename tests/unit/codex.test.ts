@@ -65,6 +65,32 @@ describe("postWithRetry", () => {
     expect(fetchMock).toHaveBeenCalledTimes(5)
   })
 
+  test("retries when the connection drops while reading the body", async () => {
+    const fetchMock = installFetch(async () => new Response("ok"))
+    const droppedBody = new ReadableStream<Uint8Array>({
+      pull(controller) {
+        controller.error(new Error("socket closed"))
+      },
+    })
+    fetchMock.mockResolvedValueOnce(new Response(droppedBody))
+
+    const res = await postWithRetry(ENDPOINT, {}, 0)
+
+    expect(await res.text()).toBe("ok")
+    expect(fetchMock).toHaveBeenCalledTimes(2)
+  })
+
+  test("rejects an invalid header value without calling fetch or echoing the value", async () => {
+    const fetchMock = installFetch(async () => new Response("ok"))
+    const token = "secret-token"
+
+    const promise = postWithRetry(ENDPOINT, { headers: { Authorization: `Bearer ${token}\r\nX: y` } }, 0)
+
+    await expect(promise).rejects.toThrow("invalid request header value")
+    await expect(promise).rejects.not.toThrow(token)
+    expect(fetchMock).toHaveBeenCalledTimes(0)
+  })
+
   test("does not retry a 429 response", async () => {
     const fetchMock = installFetch(async () => new Response("slow down", { status: 429 }))
 

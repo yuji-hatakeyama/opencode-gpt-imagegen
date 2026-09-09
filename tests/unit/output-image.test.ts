@@ -69,7 +69,7 @@ describe("buildSavedMessage", () => {
     expect(buildSavedMessage(saved, requested)).toBe(
       `Generated image saved to ${saved}. The requested path ${requested} already existed and was left untouched; ` +
         "the new image was saved under a versioned name instead. Do not overwrite, replace, or rename that " +
-        "existing file unless the user explicitly asks; report the saved path as-is.",
+        "existing file unless the user explicitly asks you to overwrite or delete it; report the saved path as-is.",
     )
   })
 })

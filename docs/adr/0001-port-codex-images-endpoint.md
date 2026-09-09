@@ -1,6 +1,6 @@
 # ADR 0001: Port image generation from the hosted Responses tool to the Codex images endpoint
 
-- Status: Accepted (implementation in progress; see [Task list](#task-list))
+- Status: Accepted
 - Date: 2026-09-10 (supersedes the research note written on 2026-07-13)
 - Codex reference commit: [`c77c34ed33877a6e5b3759703d01d3b223274cbf`](https://github.com/openai/codex/commit/c77c34ed33877a6e5b3759703d01d3b223274cbf) (main, 2026-09-09). Every permalink below and in `src/` points at this commit so a future port can diff against it.
 
@@ -60,6 +60,8 @@ Two direct `POST /backend-api/codex/images/generations` calls with the codex bod
 
 Both requests carried a non-UUID `x-codex-image-turn-id` and were accepted. Both responses carried `x-codex-imagegen-request-id`; `data[0]` had only `b64_json` (no `generation_id`). This matches the 2026-07-13 finding that the backend derives quality and size from the prompt, which is consistent with codex sending `auto` for both.
 
+The e2e suite (`bun run test:e2e_subscription`) passed on 2026-09-10 against this implementation. Its two `images/generations` cases came back at exactly the prompted 1024x1536 and 1536x1024. Its `images/edits` case, prompted with 2048x1152 and two reference images, came back at 1672x941: the aspect ratio was kept but the resolution was chosen by the backend. A first e2e attempt that day failed before reaching the plugin with "The usage limit has been reached", which was the ChatGPT plan's 5-hour chat limit for the `gpt-5.5` session model, not the image limit.
+
 ## Decision
 
 1. Replace the Responses + hosted tool call with the codex images endpoint, mirroring the request above field for field: `gpt-image-2`, `background`/`quality`/`size` fixed to `auto`, `images/edits` when reference images are present.
@@ -80,13 +82,13 @@ Everything not listed here mirrors codex at the reference commit (see the permal
 | # | Where | Deviation | Reason |
 |---|---|---|---|
 | 1 | `src/codex.ts` (headers) | `originator: opencode`, no `User-Agent`/`version` headers | This plugin is not the codex client; it identifies itself the way OpenCode already does on the same backend |
-| 2 | `src/codex.ts` (`withSizeNote`) | Appends `Output image size — width/height` to the prompt when `size` is `WIDTHxHEIGHT` | Codex has no size arg (its model writes dimensions into the prompt itself). The backend ignores the structured field and honors prompt dimensions (verified 2026-07-13 and 2026-09-10) |
+| 2 | `src/codex.ts` (`withSizeNote`) | Appends `Output image size — width/height` to the prompt when `size` is `WIDTHxHEIGHT` | Codex has no size arg (its model writes dimensions into the prompt itself). The backend ignores the structured field and honors prompt dimensions on `images/generations` (verified 2026-07-13 and 2026-09-10); on `images/edits` it keeps only the aspect ratio (observed 2026-09-10), which the tool description states |
 | 3 | `src/index.ts` (tool args) | `out`, `size` and `images` exist; codex's tool has `referenced_image_paths` and `num_last_images_to_include` and no `quality` | `out` is where the plugin saves; `size` feeds deviation 2; `images` keeps the name existing users rely on; `num_last_images_to_include` needs conversation history the plugin API does not expose |
 | 4 | `src/codex.ts` (turn id) | `x-codex-image-turn-id` carries the OpenCode `messageID` | Closest equivalent of a codex turn id; the backend accepts non-UUID values |
 | 5 | `src/codex.ts` (HTTP errors) | Error body is raw text truncated to 500 chars; codex renders Rust's `Debug` form of `Option<String>`. Decode errors omit codex's `stream error: ` prefix | Readability; the `Some("...")` formatting and the `ApiError::Stream` prefix are thiserror artifacts, not a contract, and "stream error" would mislead on a plain JSON response |
 | 6 | `src/codex.ts` (429) | A 429 surfaces as a plain HTTP error; codex parses `usage_limit_reached` + `limit_id=image_gen` into a typed failure with `resets_at` | The plugin has no UI to render a typed failure; the response body already states the limit |
 | 7 | `src/codex.ts` (response) | An empty-string `b64_json` is rejected as "no image data"; codex would accept it | Decoding an empty string would write a 0-byte PNG |
-| 8 | `src/codex.ts` (retry) | Every fetch rejection is treated as a retryable transport error; codex retries only its `Timeout`/`Connection`/`Network` variants. Header values are validated once before the loop so an invalid token fails fast | fetch does not classify failures the way reqwest does (network failures surface as plain `TypeError`s), so the only request-construction error that can be told apart up front is an invalid header |
+| 8 | `src/codex.ts` (retry) | Every fetch rejection is treated as a retryable transport error; codex retries only its `Timeout`/`Connection`/`Network` variants. Header values are validated once before the loop so an invalid token fails fast, with a fixed message because the runtime's own message echoes the header value | fetch does not classify failures the way reqwest does (network failures surface as plain `TypeError`s), so the only request-construction error that can be told apart up front is an invalid header. The response body is read inside the retried scope, as in codex, so a connection dropped mid-body is retried |
 | 9 | `src/codex.ts` (analytics) | `x-codex-imagegen-request-id` and `generation_id` are not recorded | Codex uses them only for analytics events the plugin has no sink for |
 | 10 | `src/input-image.ts` | Paths may be relative (resolved against the OpenCode context dir); MIME comes from magic-byte sniffing via `file-type`; no re-encoding | Codex requires absolute paths and re-encodes non-PNG/JPEG/WebP inputs to PNG; a raster re-encoder is a heavy dependency for a plugin (known gap: GIF references are sent unconverted) |
 | 11 | `src/output-image.ts` | Saves to the caller-specified path with non-overwriting `-vN` versioning; codex saves to `generated_images/{session}/{call_id}.png` | Output placement is this plugin's own behavior |
@@ -96,24 +98,10 @@ Everything not listed here mirrors codex at the reference commit (see the permal
 ## Consequences
 
 - Image generation keeps working after the backend drops the hosted tool, on the path codex itself exercises.
-- `quality` disappears from the tool schema (a minor release, since the argument had no effect).
+- `quality` disappears from the tool schema. The argument had no effect, so callers lose nothing, but the tool contract changes.
 - Reference images are capped at 5 per call; more than that was never accepted by the new endpoint's client in codex.
+- `size` is exact only for a new image; with reference images the backend keeps the aspect ratio and picks the resolution.
 - Future ports: diff codex against `c77c34ed` for `codex-rs/ext/image-generation/`, `codex-rs/codex-api/src/images.rs`, `codex-rs/codex-api/src/endpoint/images.rs`, `codex-rs/model-provider/src/bearer_auth_provider.rs` and `codex-rs/model-provider-info/src/lib.rs`, then update this ADR's reference commit and the permalinks in `src/`.
-
-## Task list
-
-- [x] Investigate codex at `c77c34ed` and verify the endpoint empirically
-- [x] Write this ADR
-- [x] `src/codex.ts`: images endpoint call with retry, error layering, size note (TDD via `tests/unit/codex.test.ts`)
-- [x] `src/input-image.ts`: codex error wording
-- [x] `src/index.ts`: schema (drop `quality`, `size` grammar, `images` max 5) parsed once at the `execute` boundary (decision 5), turn id header
-- [x] `src/output-image.ts`: codex-style output hint in the versioned-save message
-- [x] Remove `eventsource-parser`
-- [x] README / AGENTS.md
-- [x] `bun run typecheck`, `bunx biome ci .`, `bun run test`
-- [x] `bun run test:e2e_subscription` (passed on 2026-09-10 after the ChatGPT plan's 5-hour chat limit for the `gpt-5.5` session model reset; a first run had failed before reaching the plugin with "The usage limit has been reached")
-- [ ] simplify + code-review loop until no findings
-- [ ] Rewrite commits into reviewable units and force-push
 
 ## Public references
 

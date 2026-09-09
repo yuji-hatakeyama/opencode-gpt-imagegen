@@ -66,7 +66,7 @@ Pass up to 5 image paths via the `images` argument and the model uses them as re
 
 | Version | Auth path | Scope | Status |
 |---|---|---|---|
-| **v0.1.0** | ChatGPT subscription | `gpt_imagegen` with optional reference images (generation + reference-guided edits via prompting) | **Released** |
+| **v0.1.0** | ChatGPT subscription | `gpt_imagegen` with optional reference images (`images/generations`, or `images/edits` when references are given) | **Released** |
 | **v0.2.0** | OpenAI API key | Adds the API-key billing path: both `generate` (`/v1/images/generations`) and `edit` (`/v1/images/edits`) with reference images | Next |
 | **v0.3.0** | OpenAI API key | Adds **pixel-precise mask inpainting** via `/v1/images/edits` (binary PNG alpha mask) | Planned |
 

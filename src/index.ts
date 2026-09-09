@@ -20,7 +20,7 @@ const generateArgs = {
     .regex(SIZE_ARG_PATTERN, "size must be `auto` or `WIDTHxHEIGHT`")
     .nullish()
     .describe(
-      "Optional image size. Use `auto` or `WIDTHxHEIGHT`; width and height must be multiples of 16px, max edge <= 3840px, long-to-short ratio <= 3:1, and total pixels between 655,360 and 8,294,400.",
+      "Optional image size. Use `auto` or `WIDTHxHEIGHT`. The backend supports multiples of 16px, max edge <= 3840px, long-to-short ratio <= 3:1, and total pixels between 655,360 and 8,294,400; it honors the exact size for a new image, but with reference images it keeps only the aspect ratio and picks the resolution itself.",
     ),
   images: tool.schema
     .array(tool.schema.string())

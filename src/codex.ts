@@ -31,15 +31,24 @@ export async function postWithRetry(
   init: RequestInit,
   baseDelayMs = RETRY_BASE_DELAY_MS,
 ): Promise<Response> {
-  // fetch reports an invalid header value (e.g. a token with a stray newline) as a rejection
-  // indistinguishable from a network failure; validating the headers once up front fails
-  // fast instead of retrying a request that can never be sent.
-  new Headers(init.headers)
+  // fetch rejects on an invalid header value (an embedded CR/LF or non-Latin1 byte in the
+  // token) the same way it rejects on a network failure, so it would be retried; validating
+  // once up front fails fast. The runtime's message echoes the header value, so it is replaced.
+  try {
+    new Headers(init.headers)
+  } catch {
+    throw new Error("invalid request header value")
+  }
   for (let attempt = 1; ; attempt++) {
     const retriesLeft = attempt <= REQUEST_MAX_RETRIES
     try {
       const res = await fetch(url, init)
-      if (res.status < 500 || !retriesLeft) return res
+      if (res.status < 500 || !retriesLeft) {
+        // Read the body inside the retried scope, as codex's transport does, so a connection
+        // dropped mid-body is retried too. The buffered copy keeps status/statusText/headers.
+        // https://github.com/openai/codex/blob/c77c34ed33877a6e5b3759703d01d3b223274cbf/codex-rs/http-client/src/transport.rs#L114-L137
+        return new Response(await res.arrayBuffer(), res)
+      }
       // Free the abandoned body so the keep-alive connection can be reused during the backoff.
       await res.body?.cancel().catch(() => {})
     } catch (err) {
@@ -54,6 +63,7 @@ export async function postWithRetry(
 
 // The backend ignores the structured size field and honors dimensions written in the
 // prompt (ADR 0001 #2), so a WIDTHxHEIGHT size is restated there; "auto" adds nothing.
+// Observed 2026-09-10: exact on images/generations, aspect ratio only on images/edits.
 function withSizeNote(prompt: string, size?: string): string {
   const [, width, height] = size?.match(SIZE_ARG_PATTERN) ?? []
   if (!width || !height) return prompt
