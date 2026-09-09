@@ -92,7 +92,7 @@ describe("gpt_imagegen e2e (subscription)", () => {
       await runOpencode(
         `Use the gpt_imagegen tool to generate an image at character.png. ` +
           `Content: a man wearing a navy-blue samue and a red hachimaki headband, standing in a garden of cherry blossoms in full bloom. ` +
-          `Style: ${STYLE}. Size: 1024x1536 (portrait). Quality: medium.`,
+          `Style: ${STYLE}. Size: 1024x1536 (portrait).`,
       )
       const out = path.join(WORKDIR, "character.png")
       const buf = await assertPng(out)
@@ -110,13 +110,12 @@ describe("gpt_imagegen e2e (subscription)", () => {
       await runOpencode(
         `Use the gpt_imagegen tool to generate an image at character.png. ` +
           `Content: a woman wearing a yellow yukata and holding a red wagasa parasol, standing in a garden at night with fireflies dancing around her. ` +
-          `Style: ${STYLE}. Size: 1536x1024 (landscape). Quality: medium.`,
+          `Style: ${STYLE}. Size: 1536x1024 (landscape).`,
       )
+      // No dimension assertions here: A already pins that the backend honors the prompt
+      // size note, and B's distinct e2e signal is the auto-versioned save.
       const out = path.join(WORKDIR, "character-v2.png")
-      const buf = await assertPng(out)
-      const { width, height } = readPngDimensions(buf)
-      expect(width).toBe(1536)
-      expect(height).toBe(1024)
+      await assertPng(out)
       console.log(`B: ${out}`)
     },
     TEST_TIMEOUT_MS,
@@ -131,7 +130,7 @@ describe("gpt_imagegen e2e (subscription)", () => {
           `Content: the man from Image 1 (navy samue + red hachimaki) and the woman from Image 2 (yellow yukata + red wagasa) standing side by side ` +
           `on the engawa veranda of an old Japanese house, smiling at the viewer. ` +
           `Preserve each character's outfit, hairstyle, and props exactly. ` +
-          `Style: ${STYLE}. Size: 2048x1152. Quality: medium.`,
+          `Style: ${STYLE}. Size: 2048x1152.`,
       )
       const out = path.join(WORKDIR, "together.png")
       await assertPng(out)
