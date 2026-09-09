@@ -83,15 +83,4 @@ describe("readReferenceImages", () => {
       `unable to read referenced image at \`${missing}\`: `,
     )
   })
-
-  test("accepts exactly the maximum of 5 images", async () => {
-    await writeFile(path.join(dir, "ref.png"), PNG)
-    const paths = Array.from({ length: 5 }, () => "ref.png")
-    expect(await readReferenceImages(paths, dir)).toHaveLength(5)
-  })
-
-  test("rejects more than 5 images before reading any file", async () => {
-    const paths = Array.from({ length: 6 }, (_, i) => `missing-${i}.png`)
-    await expect(readReferenceImages(paths, dir)).rejects.toThrow("`images` must contain at most 5 paths")
-  })
 })

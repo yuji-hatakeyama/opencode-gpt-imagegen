@@ -54,27 +54,23 @@ describe("callViaCodexImages", () => {
   test("posts an edits request when reference images are given", async () => {
     const fetchMock = installFetch(async () => imageResponse("B64"))
 
-    await callViaCodexImages(AUTH, ARGS, ["data:image/png;base64,AAA", "data:image/jpeg;base64,BBB"], TURN)
+    await callViaCodexImages(
+      AUTH,
+      { ...ARGS, size: "2048x1152" },
+      ["data:image/png;base64,AAA", "data:image/jpeg;base64,BBB"],
+      TURN,
+    )
 
     const [url, init] = fetchMock.mock.calls[0]
     expect(url).toBe("https://chatgpt.com/backend-api/codex/images/edits")
     expect(JSON.parse(init.body as string)).toEqual({
       images: [{ image_url: "data:image/png;base64,AAA" }, { image_url: "data:image/jpeg;base64,BBB" }],
-      prompt: "a cat",
+      prompt: "a cat\n\nOutput image size — width: 2048px, height: 1152px.",
       background: "auto",
       model: "gpt-image-2",
       quality: "auto",
       size: "auto",
     })
-  })
-
-  test("appends the size note to the prompt when size is given with reference images", async () => {
-    const fetchMock = installFetch(async () => imageResponse("B64"))
-
-    await callViaCodexImages(AUTH, { ...ARGS, size: "2048x1152" }, ["data:image/png;base64,AAA"], TURN)
-
-    const body = JSON.parse(fetchMock.mock.calls[0][1].body as string)
-    expect(body.prompt).toBe("a cat\n\nOutput image size — width: 2048px, height: 1152px.")
   })
 
   test("keeps the prompt unchanged when size is omitted", async () => {
@@ -167,23 +163,16 @@ describe("callViaCodexImages", () => {
   })
 
   test("retries a 5xx response and returns the result of the retry", async () => {
-    let calls = 0
-    const fetchMock = installFetch(async () => {
-      calls++
-      return calls === 1 ? new Response("boom", { status: 500 }) : imageResponse("RETRIED")
-    })
+    const fetchMock = installFetch(async () => imageResponse("RETRIED"))
+    fetchMock.mockResolvedValueOnce(new Response("boom", { status: 500 }))
 
     expect(await callViaCodexImages(AUTH, ARGS, [], NO_DELAY)).toBe("RETRIED")
     expect(fetchMock).toHaveBeenCalledTimes(2)
   })
 
   test("retries a network error and returns the result of the retry", async () => {
-    let calls = 0
-    const fetchMock = installFetch(async () => {
-      calls++
-      if (calls === 1) throw new Error("socket hang up")
-      return imageResponse("RETRIED")
-    })
+    const fetchMock = installFetch(async () => imageResponse("RETRIED"))
+    fetchMock.mockRejectedValueOnce(new Error("socket hang up"))
 
     expect(await callViaCodexImages(AUTH, ARGS, [], NO_DELAY)).toBe("RETRIED")
     expect(fetchMock).toHaveBeenCalledTimes(2)

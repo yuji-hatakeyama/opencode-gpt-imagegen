@@ -1,7 +1,6 @@
 import * as fs from "node:fs/promises"
 import * as path from "node:path"
 import { fileTypeFromBuffer } from "file-type"
-import { MAX_EDIT_IMAGES } from "./codex"
 
 async function readImageAsDataUrl(filePath: string, ctxDir: string): Promise<string> {
   const abs = path.isAbsolute(filePath) ? filePath : path.resolve(ctxDir, filePath)
@@ -25,14 +24,7 @@ async function readImageAsDataUrl(filePath: string, ctxDir: string): Promise<str
 
 // Read the optional reference image paths and encode them as data URLs the Codex
 // backend accepts as image_url content. Paths resolve relative to the OpenCode context
-// directory unless absolute. The cap and its wording mirror codex's request_for_call_args
-// (with this plugin's argument name); the schema in index.ts enforces the same bound,
-// and the runtime re-check is kept because codex has both layers too.
-// https://github.com/openai/codex/blob/c77c34ed33877a6e5b3759703d01d3b223274cbf/codex-rs/ext/image-generation/src/tool.rs#L424-L429
+// directory unless absolute. The count is capped by the tool schema (MAX_EDIT_IMAGES).
 export async function readReferenceImages(paths: string[] | undefined, ctxDir: string): Promise<string[]> {
-  const list = paths ?? []
-  if (list.length > MAX_EDIT_IMAGES) {
-    throw new Error(`\`images\` must contain at most ${MAX_EDIT_IMAGES} paths`)
-  }
-  return Promise.all(list.map((p) => readImageAsDataUrl(p, ctxDir)))
+  return Promise.all((paths ?? []).map((p) => readImageAsDataUrl(p, ctxDir)))
 }

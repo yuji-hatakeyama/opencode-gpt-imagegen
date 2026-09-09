@@ -31,19 +31,20 @@ async function postWithRetry(url: string, init: RequestInit, baseDelayMs: number
     delay(baseDelayMs * 2 ** (attempt - 1) * (0.9 + Math.random() * 0.2), undefined, {
       signal: init.signal ?? undefined,
     })
-  for (let attempt = 0; ; attempt++) {
+  for (let attempt = 1; ; attempt++) {
+    const retriesLeft = attempt <= REQUEST_MAX_RETRIES
     let res: Response
     try {
       res = await fetch(url, init)
     } catch (err) {
-      if (init.signal?.aborted || attempt >= REQUEST_MAX_RETRIES) throw err
-      await backoff(attempt + 1)
+      if (init.signal?.aborted || !retriesLeft) throw err
+      await backoff(attempt)
       continue
     }
-    if (res.status >= 500 && attempt < REQUEST_MAX_RETRIES) {
+    if (res.status >= 500 && retriesLeft) {
       // Free the abandoned body so the keep-alive connection can be reused during the backoff.
       await res.body?.cancel().catch(() => {})
-      await backoff(attempt + 1)
+      await backoff(attempt)
       continue
     }
     return res
@@ -57,9 +58,9 @@ async function postWithRetry(url: string, init: RequestInit, baseDelayMs: number
 // size in the body has no effect, while dimensions written in the prompt are honored
 // exactly). Restating WxH in the prompt is therefore the only working dimension control.
 function withSizeNote(prompt: string, size?: string): string {
-  const m = size?.match(SIZE_ARG_PATTERN)
-  if (m?.[1] === undefined || m[2] === undefined) return prompt
-  return `${prompt}\n\nOutput image size — width: ${m[1]}px, height: ${m[2]}px.`
+  const [, width, height] = size?.match(SIZE_ARG_PATTERN) ?? []
+  if (!width || !height) return prompt
+  return `${prompt}\n\nOutput image size — width: ${width}px, height: ${height}px.`
 }
 
 type CallOptions = {
@@ -76,7 +77,7 @@ type CallOptions = {
 // https://github.com/openai/codex/blob/c77c34ed33877a6e5b3759703d01d3b223274cbf/codex-rs/ext/image-generation/src/tool.rs#L419-L488
 export async function callViaCodexImages(
   auth: OpenAIAuth,
-  args: GenerateArgs,
+  args: Pick<GenerateArgs, "prompt" | "size">,
   inputImageDataUrls: string[],
   opts: CallOptions,
 ): Promise<string> {
@@ -120,9 +121,10 @@ export async function callViaCodexImages(
   // aborts (also possible mid body read) propagate as-is. The inner layers throw
   // codex's layer-native error strings.
   // https://github.com/openai/codex/blob/c77c34ed33877a6e5b3759703d01d3b223274cbf/codex-rs/ext/image-generation/src/tool.rs#L172-L177
-  let first: { b64_json: string } | undefined
+  let b64: string | undefined
   try {
-    first = await requestFirstImage(`${CODEX_BASE_URL}/${path}`, init, opts.retryBaseDelayMs ?? RETRY_BASE_DELAY_MS)
+    const res = await postWithRetry(`${CODEX_BASE_URL}/${path}`, init, opts.retryBaseDelayMs ?? RETRY_BASE_DELAY_MS)
+    b64 = await decodeFirstImage(res)
   } catch (err) {
     if (opts.signal?.aborted) throw err
     throw new Error(`image generation failed: ${err instanceof Error ? err.message : err}`)
@@ -130,28 +132,24 @@ export async function callViaCodexImages(
 
   // Unlike codex, an empty string is also rejected: decoding it would write a 0-byte file.
   // https://github.com/openai/codex/blob/c77c34ed33877a6e5b3759703d01d3b223274cbf/codex-rs/ext/image-generation/src/tool.rs#L185-L197
-  if (!first?.b64_json) {
+  if (!b64) {
     throw new Error("image generation returned no image data")
   }
-  return first.b64_json
+  return b64
 }
 
-// Executes the request and returns the first element of the response's `data` array.
-// Errors carry codex's layer-native strings: TransportError::Http displays as
-// "http {status}: {body:?}" (status includes the reason phrase) and decode failures as
-// ApiError::Stream ("stream error: failed to decode ..."); a missing `data` array or an
-// element without a string `b64_json` is a decode failure too (serde requires those fields).
+// Returns the base64 of the first element of the response's `data` array, or undefined
+// when the array is empty. Errors carry codex's layer-native strings: TransportError::Http
+// displays as "http {status}: {body:?}" (status includes the reason phrase) and decode
+// failures as ApiError::Stream ("stream error: failed to decode ..."); a missing `data`
+// array or an element without a string `b64_json` is a decode failure too (serde requires
+// those fields).
 // Deviation: the HTTP error body is raw text truncated to 500 chars, not Rust's Debug form.
 // https://github.com/openai/codex/blob/c77c34ed33877a6e5b3759703d01d3b223274cbf/codex-rs/http-client/src/transport.rs#L114-L131
 // https://github.com/openai/codex/blob/c77c34ed33877a6e5b3759703d01d3b223274cbf/codex-rs/http-client/src/error.rs#L10
 // https://github.com/openai/codex/blob/c77c34ed33877a6e5b3759703d01d3b223274cbf/codex-rs/codex-api/src/endpoint/images.rs#L77-L78
 // https://github.com/openai/codex/blob/c77c34ed33877a6e5b3759703d01d3b223274cbf/codex-rs/codex-api/src/images.rs#L55-L72
-async function requestFirstImage(
-  url: string,
-  init: RequestInit,
-  baseDelayMs: number,
-): Promise<{ b64_json: string } | undefined> {
-  const res = await postWithRetry(url, init, baseDelayMs)
+async function decodeFirstImage(res: Response): Promise<string | undefined> {
   if (!res.ok) {
     const detail = await res.text().catch(() => "")
     const status = res.statusText ? `${res.status} ${res.statusText}` : `${res.status}`
@@ -170,5 +168,5 @@ async function requestFirstImage(
   const first = json.data[0]
   if (first === undefined) return undefined
   if (typeof first?.b64_json !== "string") throw decodeError("missing field `b64_json`")
-  return { b64_json: first.b64_json }
+  return first.b64_json
 }

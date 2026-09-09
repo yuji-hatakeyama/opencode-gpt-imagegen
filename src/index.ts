@@ -17,8 +17,7 @@ const GptImagePlugin: Plugin = async (_input: PluginInput): Promise<Hooks> => {
           "For many distinct assets, invoke gpt_imagegen once per requested asset rather than relying on multi-image output; gpt_imagegen returns one image per call.",
           "Requires OpenCode to be authenticated with ChatGPT OAuth. Returns the absolute path of the saved PNG.",
         ].join(" "),
-        // The backend picks quality itself and ignores a structured size, so there is no
-        // quality argument and `size` is restated in the prompt (see withSizeNote in codex.ts).
+        // No quality argument, and `size` is restated in the prompt: see withSizeNote in codex.ts.
         args: {
           prompt: tool.schema.string().describe("Description of the image to generate."),
           out: tool.schema
