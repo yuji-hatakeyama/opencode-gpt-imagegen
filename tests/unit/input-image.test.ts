@@ -69,13 +69,29 @@ describe("readReferenceImages", () => {
   test("throws when a file is not a recognized image", async () => {
     const abs = path.join(dir, "notes.txt")
     await writeFile(abs, "this is plain text, not an image")
-    expect(readReferenceImages(["notes.txt"], dir)).rejects.toThrow(`unsupported image file type: ${abs}`)
+    await expect(readReferenceImages(["notes.txt"], dir)).rejects.toThrow(
+      `unable to process referenced image at \`${abs}\`: unsupported image file type`,
+    )
   })
 
   // Promise.all means one bad path fails the whole call — the opposite of auth.ts, which
   // deliberately swallows read errors. Pin that contract so a future change can't silently drop a missing reference.
   test("rejects the whole call when any path is missing", async () => {
     await writeFile(path.join(dir, "present.png"), PNG)
-    expect(readReferenceImages(["present.png", "missing.png"], dir)).rejects.toThrow()
+    const missing = path.join(dir, "missing.png")
+    await expect(readReferenceImages(["present.png", "missing.png"], dir)).rejects.toThrow(
+      `unable to read referenced image at \`${missing}\`: `,
+    )
+  })
+
+  test("accepts exactly the maximum of 5 images", async () => {
+    await writeFile(path.join(dir, "ref.png"), PNG)
+    const paths = Array.from({ length: 5 }, () => "ref.png")
+    expect(await readReferenceImages(paths, dir)).toHaveLength(5)
+  })
+
+  test("rejects more than 5 images before reading any file", async () => {
+    const paths = Array.from({ length: 6 }, (_, i) => `missing-${i}.png`)
+    await expect(readReferenceImages(paths, dir)).rejects.toThrow("`images` must contain at most 5 paths")
   })
 })
