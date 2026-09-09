@@ -3,7 +3,7 @@
 ## Project Shape
 
 - Bun is the package manager/runtime; use `bun install --frozen-lockfile` with the committed `bun.lock`.
-- The plugin entry is `src/index.ts` (plugin wiring + tool schema); helpers live in role-based modules — `src/types.ts` (shared types), `src/auth.ts` (auth resolution), `src/input-image.ts` (reference image reading), `src/output-image.ts` (non-overwriting save + message), `src/codex.ts` (Codex backend call + SSE parsing).
+- The plugin entry is `src/index.ts` (plugin wiring + tool schema); helpers live in role-based modules — `src/types.ts` (shared types), `src/auth.ts` (auth resolution), `src/input-image.ts` (reference image reading), `src/output-image.ts` (non-overwriting save + message), `src/codex.ts` (Codex images endpoint call).
 - `bun run build` bundles `src` into a single self-contained `dist/index.js` via `bun build --target node --format esm --packages external` (dependencies, including the `@opencode-ai/plugin` peer dep, stay external). Bundling avoids the extensionless relative imports `tsc` would emit, which native Node ESM cannot resolve. No `.d.ts` is published — the plugin is loaded by OpenCode at runtime, not imported as a typed library.
 - `dist/` is ignored locally but is the publish artifact (just `index.js`). Run `bun run build` before inspecting package output.
 - `bunfig.toml` enforces `install.minimumReleaseAge = 604800` (1 week): newly published versions are filtered out by `bun install` / `bun add` / `bun outdated`.
@@ -27,9 +27,9 @@
 
 ## Implementation Notes
 
-- The exposed tool is `gpt_imagegen`; it calls the ChatGPT Codex responses endpoint with the hosted `image_generation` tool.
+- The exposed tool is `gpt_imagegen`; it calls the ChatGPT Codex backend images endpoint (`images/generations`, or `images/edits` when reference images are given) with the fixed `gpt-image-2` model, mirroring the codex CLI's image generation extension. The backend chooses quality and size itself and ignores the structured body fields; dimensions written in the prompt text are honored, which is why a `WIDTHxHEIGHT` size argument is restated there. See `docs/adr/0001-port-codex-images-endpoint.md` for the codex reference commit, the request contract, and the list of intentional deviations; update that ADR when porting further codex changes.
 - Output paths are resolved relative to the OpenCode context directory unless absolute, and existing files are never overwritten; suffixes `-v2` through `-v999` are tried.
-- Reference images are read from paths relative to the OpenCode context directory and are embedded as data URLs after MIME detection.
+- Reference images (at most 5 per call) are read from paths relative to the OpenCode context directory and are embedded as data URLs after MIME detection.
 
 ## Publishing
 
