@@ -91,6 +91,24 @@ describe("callViaCodexImages", () => {
     expect(body.prompt).toBe("a cat")
   })
 
+  test("keeps the prompt unchanged when size has a zero dimension", async () => {
+    // OpenCode does not enforce the schema regex, so a bogus size reaches this layer.
+    const fetchMock = installFetch(async () => imageResponse("B64"))
+
+    await callViaCodexImages(AUTH, { ...ARGS, size: "0x1024" }, [], TURN)
+
+    const body = JSON.parse(fetchMock.mock.calls[0][1].body as string)
+    expect(body.prompt).toBe("a cat")
+  })
+
+  test("treats a JSON null body as a decode failure", async () => {
+    installFetch(async () => new Response("null"))
+
+    await expect(callViaCodexImages(AUTH, ARGS, [], TURN)).rejects.toThrow(
+      "image generation failed: failed to decode image generation response: missing field `data`",
+    )
+  })
+
   test("omits the ChatGPT-Account-ID header when accountId is absent", async () => {
     const fetchMock = installFetch(async () => imageResponse("B64"))
 
@@ -116,7 +134,7 @@ describe("callViaCodexImages", () => {
     installFetch(async () => new Response("not-json"))
 
     await expect(callViaCodexImages(AUTH, ARGS, [], TURN)).rejects.toThrow(
-      "image generation failed: stream error: failed to decode image generation response",
+      "image generation failed: failed to decode image generation response",
     )
   })
 
@@ -124,7 +142,7 @@ describe("callViaCodexImages", () => {
     installFetch(async () => new Response(JSON.stringify({ created: 1 })))
 
     await expect(callViaCodexImages(AUTH, ARGS, [], TURN)).rejects.toThrow(
-      "image generation failed: stream error: failed to decode image generation response: missing field `data`",
+      "image generation failed: failed to decode image generation response: missing field `data`",
     )
   })
 
@@ -132,7 +150,7 @@ describe("callViaCodexImages", () => {
     installFetch(async () => new Response(JSON.stringify({ created: 1, data: [{ generation_id: "g1" }] })))
 
     await expect(callViaCodexImages(AUTH, ARGS, [], TURN)).rejects.toThrow(
-      "image generation failed: stream error: failed to decode image generation response: missing field `b64_json`",
+      "image generation failed: failed to decode image generation response: missing field `b64_json`",
     )
   })
 
@@ -205,9 +223,11 @@ describe("callViaCodexImages", () => {
       throw new DOMException("The operation was aborted.", "AbortError")
     })
 
-    await expect(callViaCodexImages(AUTH, ARGS, [], { ...TURN, signal: controller.signal })).rejects.toThrow(
-      "The operation was aborted.",
-    )
+    // The rejection must be the AbortError itself, not an "image generation failed" wrapper.
+    await expect(callViaCodexImages(AUTH, ARGS, [], { ...TURN, signal: controller.signal })).rejects.toMatchObject({
+      name: "AbortError",
+      message: "The operation was aborted.",
+    })
     expect(fetchMock).toHaveBeenCalledTimes(1)
   })
 
@@ -222,7 +242,7 @@ describe("callViaCodexImages", () => {
     })
     setTimeout(() => controller.abort(), 20)
 
-    await expect(promise).rejects.toThrow("aborted")
+    await expect(promise).rejects.toMatchObject({ name: "AbortError" })
     expect(fetchMock).toHaveBeenCalledTimes(1)
   })
 })

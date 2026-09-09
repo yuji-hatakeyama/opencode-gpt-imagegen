@@ -12,7 +12,8 @@ export const MAX_EDIT_IMAGES = 5
 
 // The size argument grammar, shared with the tool schema in index.ts. The capture
 // groups are what withSizeNote interprets, so acceptance and parsing cannot drift apart.
-export const SIZE_ARG_PATTERN = /^(?:auto|(\d+)x(\d+))$/
+// Zero dimensions are excluded so a bogus "0x0" is not forwarded into the prompt.
+export const SIZE_ARG_PATTERN = /^(?:auto|([1-9]\d*)x([1-9]\d*))$/
 
 // https://github.com/openai/codex/blob/c77c34ed33877a6e5b3759703d01d3b223274cbf/codex-rs/model-provider-info/src/lib.rs#L31
 // https://github.com/openai/codex/blob/c77c34ed33877a6e5b3759703d01d3b223274cbf/codex-rs/model-provider-info/src/lib.rs#L371-L377
@@ -26,28 +27,20 @@ const RETRY_BASE_DELAY_MS = 200
 // https://github.com/openai/codex/blob/c77c34ed33877a6e5b3759703d01d3b223274cbf/codex-rs/codex-client/src/retry.rs#L22-L48
 // https://github.com/openai/codex/blob/c77c34ed33877a6e5b3759703d01d3b223274cbf/codex-rs/codex-client/src/retry.rs#L80-L107
 async function postWithRetry(url: string, init: RequestInit, baseDelayMs: number): Promise<Response> {
-  // https://github.com/openai/codex/blob/c77c34ed33877a6e5b3759703d01d3b223274cbf/codex-rs/codex-client/src/retry.rs#L39-L48
-  const backoff = (attempt: number) =>
-    delay(baseDelayMs * 2 ** (attempt - 1) * (0.9 + Math.random() * 0.2), undefined, {
-      signal: init.signal ?? undefined,
-    })
   for (let attempt = 1; ; attempt++) {
     const retriesLeft = attempt <= REQUEST_MAX_RETRIES
-    let res: Response
     try {
-      res = await fetch(url, init)
-    } catch (err) {
-      if (init.signal?.aborted || !retriesLeft) throw err
-      await backoff(attempt)
-      continue
-    }
-    if (res.status >= 500 && retriesLeft) {
+      const res = await fetch(url, init)
+      if (res.status < 500 || !retriesLeft) return res
       // Free the abandoned body so the keep-alive connection can be reused during the backoff.
       await res.body?.cancel().catch(() => {})
-      await backoff(attempt)
-      continue
+    } catch (err) {
+      if (init.signal?.aborted || !retriesLeft) throw err
     }
-    return res
+    // https://github.com/openai/codex/blob/c77c34ed33877a6e5b3759703d01d3b223274cbf/codex-rs/codex-client/src/retry.rs#L39-L48
+    await delay(baseDelayMs * 2 ** (attempt - 1) * (0.9 + Math.random() * 0.2), undefined, {
+      signal: init.signal ?? undefined,
+    })
   }
 }
 
@@ -93,10 +86,9 @@ export async function callViaCodexImages(
     quality: "auto",
     size: "auto",
   }
-  const [path, body] =
-    inputImageDataUrls.length === 0
-      ? (["images/generations", generation] as const)
-      : (["images/edits", { images: inputImageDataUrls.map((u) => ({ image_url: u })), ...generation }] as const)
+  const edits = inputImageDataUrls.length > 0
+  const path = edits ? "images/edits" : "images/generations"
+  const body = edits ? { images: inputImageDataUrls.map((u) => ({ image_url: u })), ...generation } : generation
 
   // Auth headers mirror codex's BearerAuthProvider, the turn id header its image backend.
   // codex additionally sends client metadata (User-Agent, originator=codex_cli_rs) —
@@ -140,11 +132,12 @@ export async function callViaCodexImages(
 
 // Returns the base64 of the first element of the response's `data` array, or undefined
 // when the array is empty. Errors carry codex's layer-native strings: TransportError::Http
-// displays as "http {status}: {body:?}" (status includes the reason phrase) and decode
-// failures as ApiError::Stream ("stream error: failed to decode ..."); a missing `data`
-// array or an element without a string `b64_json` is a decode failure too (serde requires
-// those fields).
-// Deviation: the HTTP error body is raw text truncated to 500 chars, not Rust's Debug form.
+// displays as "http {status}: {body:?}" (status includes the reason phrase) and a decode
+// failure as "failed to decode image generation response: ..."; a missing `data` array or
+// an element without a string `b64_json` is a decode failure too (serde requires those fields).
+// Deviations: the HTTP error body is raw text truncated to 500 chars, not Rust's Debug form,
+// and the decode error omits codex's "stream error: " prefix (an ApiError::Stream artifact
+// that would mislead on a plain JSON response).
 // https://github.com/openai/codex/blob/c77c34ed33877a6e5b3759703d01d3b223274cbf/codex-rs/http-client/src/transport.rs#L114-L131
 // https://github.com/openai/codex/blob/c77c34ed33877a6e5b3759703d01d3b223274cbf/codex-rs/http-client/src/error.rs#L10
 // https://github.com/openai/codex/blob/c77c34ed33877a6e5b3759703d01d3b223274cbf/codex-rs/codex-api/src/endpoint/images.rs#L77-L78
@@ -156,15 +149,14 @@ async function decodeFirstImage(res: Response): Promise<string | undefined> {
     throw new Error(`http ${status}: ${detail.slice(0, 500)}`)
   }
 
-  const decodeError = (reason: unknown) =>
-    new Error(`stream error: failed to decode image generation response: ${reason}`)
-  let json: { data?: Array<{ b64_json?: unknown } | null> }
+  const decodeError = (reason: unknown) => new Error(`failed to decode image generation response: ${reason}`)
+  let json: { data?: Array<{ b64_json?: unknown } | null> } | null
   try {
     json = (await res.json()) as typeof json
   } catch (err) {
     throw decodeError(err)
   }
-  if (!Array.isArray(json.data)) throw decodeError("missing field `data`")
+  if (!Array.isArray(json?.data)) throw decodeError("missing field `data`")
   const first = json.data[0]
   if (first === undefined) return undefined
   if (typeof first?.b64_json !== "string") throw decodeError("missing field `b64_json`")

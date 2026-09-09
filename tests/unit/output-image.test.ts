@@ -63,13 +63,13 @@ describe("buildSavedMessage", () => {
     expect(buildSavedMessage(p, p)).toBe(`Generated image saved to ${p}.`)
   })
 
-  test("explains the versioning and tells the caller to copy rather than move when the saved path differs", () => {
+  test("explains the versioning and forbids touching the existing file when the saved path differs", () => {
     const saved = "/tmp/image-v2.png"
     const requested = "/tmp/image.png"
     expect(buildSavedMessage(saved, requested)).toBe(
-      `Generated image saved to ${saved}. The requested path ${requested} already existed, so the image was saved ` +
-        "under a versioned name to prevent data loss. If you need the image at another path, copy it and leave " +
-        "the original in place unless the user explicitly asks you to move or delete it.",
+      `Generated image saved to ${saved}. The requested path ${requested} already existed and was left untouched; ` +
+        "the new image was saved under a versioned name instead. Do not overwrite, replace, or rename that " +
+        "existing file unless the user explicitly asks; report the saved path as-is.",
     )
   })
 })
@@ -108,7 +108,7 @@ describe("saveGeneratedImage", () => {
     expect(second.versioned).toBe(true)
     // The exact wording is pinned by the buildSavedMessage tests; here only the two paths matter.
     expect(second.message).toStartWith(`Generated image saved to ${second.savedPath}.`)
-    expect(second.message).toContain(`The requested path ${first.savedPath} already existed`)
+    expect(second.message).toContain(`The requested path ${first.savedPath} already existed and was left untouched`)
     // The original file is left untouched.
     expect(existsSync(first.savedPath)).toBe(true)
   })

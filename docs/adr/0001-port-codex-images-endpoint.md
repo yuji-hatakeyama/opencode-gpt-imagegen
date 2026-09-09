@@ -65,12 +65,12 @@ Both requests carried a non-UUID `x-codex-image-turn-id` and were accepted. Both
 1. Replace the Responses + hosted tool call with the codex images endpoint, mirroring the request above field for field: `gpt-image-2`, `background`/`quality`/`size` fixed to `auto`, `images/edits` when reference images are present.
 2. Port codex's retry policy (5 attempts, 200 ms exponential backoff with jitter, 5xx and transport errors only) and its error message layering.
 3. Send `x-codex-image-turn-id` with the OpenCode message id, since codex correlates image requests with turns this way. Keep `originator: opencode`.
-4. Keep the plugin's own tool contract where it is not part of the request mirror: `out` (save location), `size` (restated in the prompt because that is the only working dimension control), `images` (keeps its current name). Cap `images` at codex's `MAX_EDIT_IMAGES = 5`.
-5. Drop the `quality` argument: the backend ignores it and codex deliberately sends `auto`. Callers that still pass it get a schema-strip rather than an error.
+4. Keep the plugin's own tool contract where it is not part of the request mirror: `out` (save location), `size` (restated in the prompt because that is the only working dimension control), `images` (keeps its current name). Cap `images` at codex's `MAX_EDIT_IMAGES = 5`. The cap and the size grammar are enforced at runtime in the helper modules, not only in the zod schema: OpenCode (verified on 1.18.29, `packages/opencode/src/tool/registry.ts` `fromPlugin`) builds the JSON schema from the zod args to steer the model but passes the model's arguments to `execute` without validating them.
+5. Drop the `quality` argument: the backend ignores it and codex deliberately sends `auto`. Callers that still pass it are not rejected (see 4); the value is simply not read.
 6. Do not port `num_last_images_to_include`. Codex resolves it from the conversation history, which the OpenCode plugin API does not expose. This was decided by the maintainer for this ADR.
 7. Do not bump to a gpt-image-2.5 id (see above).
 8. Remove the `eventsource-parser` dependency; the endpoint returns plain JSON.
-9. Adopt codex's output hint wording for the versioned-save message so the calling agent copies rather than moves the file. Observed in e2e runs: without this, agents `mv` the versioned file onto the requested path, defeating the non-overwrite guarantee.
+9. Make the versioned-save message prescriptive, in the spirit of codex's output hint: it names the pre-existing file as untouched and forbids overwriting or renaming it. Observed in e2e runs: without this, agents `mv` the versioned file onto the requested path, defeating the non-overwrite guarantee. Codex's literal wording ("copy it and leave the original in place") is not reused because in this plugin "the original" would be read as the versioned file and "another path" as the requested one.
 
 ## Intentional deviations from codex
 
@@ -82,10 +82,10 @@ Everything not listed here mirrors codex at the reference commit (see the permal
 | 2 | `src/codex.ts` (`withSizeNote`) | Appends `Output image size — width/height` to the prompt when `size` is `WIDTHxHEIGHT` | Codex has no size arg (its model writes dimensions into the prompt itself). The backend ignores the structured field and honors prompt dimensions (verified 2026-07-13 and 2026-09-10) |
 | 3 | `src/index.ts` (tool args) | `out`, `size` and `images` exist; codex's tool has `referenced_image_paths` and `num_last_images_to_include` and no `quality` | `out` is where the plugin saves; `size` feeds deviation 2; `images` keeps the name existing users rely on; `num_last_images_to_include` needs conversation history the plugin API does not expose |
 | 4 | `src/codex.ts` (turn id) | `x-codex-image-turn-id` carries the OpenCode `messageID` | Closest equivalent of a codex turn id; the backend accepts non-UUID values |
-| 5 | `src/codex.ts` (HTTP errors) | Error body is raw text truncated to 500 chars; codex renders Rust's `Debug` form of `Option<String>` | Readability; the `Some("...")` formatting is a thiserror artifact, not a contract |
+| 5 | `src/codex.ts` (HTTP errors) | Error body is raw text truncated to 500 chars; codex renders Rust's `Debug` form of `Option<String>`. Decode errors omit codex's `stream error: ` prefix | Readability; the `Some("...")` formatting and the `ApiError::Stream` prefix are thiserror artifacts, not a contract, and "stream error" would mislead on a plain JSON response |
 | 6 | `src/codex.ts` (429) | A 429 surfaces as a plain HTTP error; codex parses `usage_limit_reached` + `limit_id=image_gen` into a typed failure with `resets_at` | The plugin has no UI to render a typed failure; the response body already states the limit |
 | 7 | `src/codex.ts` (response) | An empty-string `b64_json` is rejected as "no image data"; codex would accept it | Decoding an empty string would write a 0-byte PNG |
-| 8 | `src/codex.ts` (retry) | Every fetch rejection is treated as a retryable transport error; codex retries only its `Timeout`/`Connection`/`Network` variants | fetch does not classify failures the way reqwest does; its rejections are all transport-shaped in practice |
+| 8 | `src/codex.ts` (retry) | Every fetch rejection is treated as a retryable transport error; codex retries only its `Timeout`/`Connection`/`Network` variants and fails fast on request-construction errors | fetch does not classify failures the way reqwest does (network failures surface as plain `TypeError`s), so a request-construction error such as an invalid header value is also retried and surfaces about 3 s later than it could |
 | 9 | `src/codex.ts` (analytics) | `x-codex-imagegen-request-id` and `generation_id` are not recorded | Codex uses them only for analytics events the plugin has no sink for |
 | 10 | `src/input-image.ts` | Paths may be relative (resolved against the OpenCode context dir); MIME comes from magic-byte sniffing via `file-type`; no re-encoding | Codex requires absolute paths and re-encodes non-PNG/JPEG/WebP inputs to PNG; a raster re-encoder is a heavy dependency for a plugin (known gap: GIF references are sent unconverted) |
 | 11 | `src/output-image.ts` | Saves to the caller-specified path with non-overwriting `-vN` versioning; codex saves to `generated_images/{session}/{call_id}.png` | Output placement is this plugin's own behavior |
@@ -103,14 +103,14 @@ Everything not listed here mirrors codex at the reference commit (see the permal
 
 - [x] Investigate codex at `c77c34ed` and verify the endpoint empirically
 - [x] Write this ADR
-- [ ] `src/codex.ts`: images endpoint call with retry, error layering, size note (TDD via `tests/unit/codex.test.ts`)
-- [ ] `src/input-image.ts`: cap at 5 images, codex error wording
-- [ ] `src/index.ts` / `src/types.ts`: schema (drop `quality`, `size` grammar, `images` max 5), turn id header
-- [ ] `src/output-image.ts`: codex-style output hint in the versioned-save message
-- [ ] Remove `eventsource-parser`
-- [ ] README / AGENTS.md / package.json description
-- [ ] `bun run typecheck`, `bunx biome ci .`, `bun run test`
-- [ ] `bun run test:e2e_subscription`
+- [x] `src/codex.ts`: images endpoint call with retry, error layering, size note (TDD via `tests/unit/codex.test.ts`)
+- [x] `src/input-image.ts`: codex error wording (the 5-image cap is enforced once, by the tool schema)
+- [x] `src/index.ts` / `src/types.ts`: schema (drop `quality`, `size` grammar, `images` max 5), turn id header
+- [x] `src/output-image.ts`: codex-style output hint in the versioned-save message
+- [x] Remove `eventsource-parser`
+- [x] README / AGENTS.md
+- [x] `bun run typecheck`, `bunx biome ci .`, `bun run test`
+- [ ] `bun run test:e2e_subscription` (first run on 2026-09-10 failed before reaching the plugin: the ChatGPT plan's 5-hour chat limit for the `gpt-5.5` session model was exhausted; rerun after reset)
 - [ ] simplify + code-review loop until no findings
 - [ ] Rewrite commits into reviewable units and force-push
 
