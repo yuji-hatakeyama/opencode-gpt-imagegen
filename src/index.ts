@@ -8,6 +8,7 @@ import { saveGeneratedImage } from "./output-image"
 // `images` plays the role of codex's `referenced_image_paths`; `out` and `size` are plugin
 // additions (codex saves to a fixed location and steers size via the prompt), and there is
 // no quality argument because the backend picks quality itself (ADR 0001 #2, #3).
+// Optional fields are nullish because some models send an explicit null for every key.
 // https://github.com/openai/codex/blob/c77c34ed33877a6e5b3759703d01d3b223274cbf/codex-rs/ext/image-generation/src/tool.rs#L86-L95
 const generateArgs = {
   prompt: tool.schema.string().describe("Description of the image to generate."),
@@ -16,19 +17,20 @@ const generateArgs = {
     .describe("Output file path, relative to the project directory unless absolute. The plugin writes a PNG."),
   size: tool.schema
     .string()
-    .regex(SIZE_ARG_PATTERN)
-    .optional()
+    .regex(SIZE_ARG_PATTERN, "size must be `auto` or `WIDTHxHEIGHT`")
+    .nullish()
     .describe(
       "Optional image size. Use `auto` or `WIDTHxHEIGHT`; width and height must be multiples of 16px, max edge <= 3840px, long-to-short ratio <= 3:1, and total pixels between 655,360 and 8,294,400.",
     ),
   images: tool.schema
     .array(tool.schema.string())
-    .max(MAX_EDIT_IMAGES)
-    .optional()
+    .max(MAX_EDIT_IMAGES, `images must contain at most ${MAX_EDIT_IMAGES} paths`)
+    .nullish()
     .describe(
       `Optional reference image paths (at most ${MAX_EDIT_IMAGES}), relative to the project directory unless absolute.`,
     ),
 }
+const generateArgsSchema = tool.schema.object(generateArgs)
 
 const GptImagePlugin: Plugin = async (_input: PluginInput): Promise<Hooks> => {
   return {
@@ -46,19 +48,25 @@ const GptImagePlugin: Plugin = async (_input: PluginInput): Promise<Hooks> => {
         async execute(rawArgs, ctx) {
           // OpenCode builds the model-facing JSON schema from these zod args but passes the
           // model's arguments to execute without validating them, so the constraints
-          // (image cap, size grammar) are enforced by parsing once here (ADR 0001, decision 4).
-          const args = tool.schema.object(generateArgs).parse(rawArgs)
+          // (image cap, size grammar) are enforced by parsing once here (ADR 0001, decision 5).
+          const parsed = generateArgsSchema.safeParse(rawArgs)
+          if (!parsed.success) {
+            throw new Error(tool.schema.prettifyError(parsed.error))
+          }
+          const args = parsed.data
 
           const auth = await loadOpenAIAuth()
           if (!auth) {
             throw new Error("OpenAI ChatGPT OAuth credentials not configured.")
           }
 
-          const inputImageDataUrls = await readReferenceImages(args.images, ctx.directory)
-          const base64 = await callViaCodexImages(auth, args, inputImageDataUrls, {
-            turnId: ctx.messageID,
-            signal: ctx.abort,
-          })
+          const inputImageDataUrls = await readReferenceImages(args.images ?? undefined, ctx.directory)
+          const base64 = await callViaCodexImages(
+            auth,
+            { prompt: args.prompt, size: args.size ?? undefined },
+            inputImageDataUrls,
+            { turnId: ctx.messageID, signal: ctx.abort },
+          )
 
           const { savedPath, versioned, message } = await saveGeneratedImage(args.out, ctx.directory, base64)
 

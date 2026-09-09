@@ -31,6 +31,10 @@ export async function postWithRetry(
   init: RequestInit,
   baseDelayMs = RETRY_BASE_DELAY_MS,
 ): Promise<Response> {
+  // fetch reports an invalid header value (e.g. a token with a stray newline) as a rejection
+  // indistinguishable from a network failure; validating the headers once up front fails
+  // fast instead of retrying a request that can never be sent.
+  new Headers(init.headers)
   for (let attempt = 1; ; attempt++) {
     const retriesLeft = attempt <= REQUEST_MAX_RETRIES
     try {
@@ -113,9 +117,9 @@ export async function callViaCodexImages(
   // https://github.com/openai/codex/blob/c77c34ed33877a6e5b3759703d01d3b223274cbf/codex-rs/ext/image-generation/src/tool.rs#L172-L177
   let b64: string | undefined
   try {
-    b64 = await decodeFirstImage(await postWithRetry(`${CODEX_BASE_URL}/${path}`, init))
+    b64 = await readImageResponse(await postWithRetry(`${CODEX_BASE_URL}/${path}`, init))
   } catch (err) {
-    if (opts.signal?.aborted) throw opts.signal.reason ?? err
+    opts.signal?.throwIfAborted()
     throw new Error(`image generation failed: ${err instanceof Error ? err.message : err}`)
   }
 
@@ -127,8 +131,9 @@ export async function callViaCodexImages(
   return b64
 }
 
-// Returns the base64 of the first element of the response's `data` array, or undefined
-// when the array is empty. The error strings are codex's layer-native ones (ADR 0001 #5):
+// Maps a non-2xx response to an error, otherwise returns the base64 of the first element of
+// the response's `data` array (undefined when the array is empty). The error strings are
+// codex's layer-native ones (ADR 0001 #5):
 // "http {status}: {body}" with the status including the reason phrase, and "failed to
 // decode image generation response: {reason}" where the reason for a missing `data` or
 // `b64_json` mirrors serde's wording (those fields are required in codex's types).
@@ -136,7 +141,7 @@ export async function callViaCodexImages(
 // https://github.com/openai/codex/blob/c77c34ed33877a6e5b3759703d01d3b223274cbf/codex-rs/http-client/src/error.rs#L10
 // https://github.com/openai/codex/blob/c77c34ed33877a6e5b3759703d01d3b223274cbf/codex-rs/codex-api/src/endpoint/images.rs#L77-L78
 // https://github.com/openai/codex/blob/c77c34ed33877a6e5b3759703d01d3b223274cbf/codex-rs/codex-api/src/images.rs#L55-L72
-async function decodeFirstImage(res: Response): Promise<string | undefined> {
+async function readImageResponse(res: Response): Promise<string | undefined> {
   if (!res.ok) {
     const detail = await res.text().catch(() => "")
     const status = res.statusText ? `${res.status} ${res.statusText}` : `${res.status}`
@@ -145,15 +150,15 @@ async function decodeFirstImage(res: Response): Promise<string | undefined> {
 
   const decodeError = (reason: unknown) =>
     new Error(`failed to decode image generation response: ${reason instanceof Error ? reason.message : reason}`)
-  let json: { data?: Array<{ b64_json?: unknown }> }
+  let json: { data?: Array<{ b64_json?: unknown } | null> } | null
   try {
     json = (await res.json()) as typeof json
   } catch (err) {
     throw decodeError(err)
   }
-  if (!Array.isArray(json.data)) throw decodeError("missing field `data`")
+  if (!Array.isArray(json?.data)) throw decodeError("missing field `data`")
   const first = json.data[0]
   if (first === undefined) return undefined
-  if (typeof first.b64_json !== "string") throw decodeError("missing field `b64_json`")
+  if (typeof first?.b64_json !== "string") throw decodeError("missing field `b64_json`")
   return first.b64_json
 }

@@ -18,7 +18,7 @@ function sentBody(fetchMock: ReturnType<typeof installFetch>) {
 const AUTH = { type: "oauth", access: "tok", accountId: "acct" } as const
 const ARGS = { prompt: "a cat" }
 const TURN = { turnId: "msg_1" }
-const URL = "https://example.test/images"
+const ENDPOINT = "https://example.test/images"
 
 const originalFetch = globalThis.fetch
 afterEach(() => {
@@ -31,7 +31,7 @@ describe("postWithRetry", () => {
     const fetchMock = installFetch(async () => new Response("ok"))
     fetchMock.mockResolvedValueOnce(new Response("boom", { status: 500 }))
 
-    const res = await postWithRetry(URL, {}, 0)
+    const res = await postWithRetry(ENDPOINT, {}, 0)
 
     expect(await res.text()).toBe("ok")
     expect(fetchMock).toHaveBeenCalledTimes(2)
@@ -41,7 +41,7 @@ describe("postWithRetry", () => {
     const fetchMock = installFetch(async () => new Response("ok"))
     fetchMock.mockRejectedValueOnce(new Error("socket hang up"))
 
-    const res = await postWithRetry(URL, {}, 0)
+    const res = await postWithRetry(ENDPOINT, {}, 0)
 
     expect(await res.text()).toBe("ok")
     expect(fetchMock).toHaveBeenCalledTimes(2)
@@ -50,7 +50,7 @@ describe("postWithRetry", () => {
   test("returns the last 5xx response after 5 attempts", async () => {
     const fetchMock = installFetch(async () => new Response("boom", { status: 503 }))
 
-    const res = await postWithRetry(URL, {}, 0)
+    const res = await postWithRetry(ENDPOINT, {}, 0)
 
     expect(res.status).toBe(503)
     expect(fetchMock).toHaveBeenCalledTimes(5)
@@ -61,14 +61,14 @@ describe("postWithRetry", () => {
       throw new Error("socket hang up")
     })
 
-    await expect(postWithRetry(URL, {}, 0)).rejects.toThrow("socket hang up")
+    await expect(postWithRetry(ENDPOINT, {}, 0)).rejects.toThrow("socket hang up")
     expect(fetchMock).toHaveBeenCalledTimes(5)
   })
 
   test("does not retry a 429 response", async () => {
     const fetchMock = installFetch(async () => new Response("slow down", { status: 429 }))
 
-    const res = await postWithRetry(URL, {}, 0)
+    const res = await postWithRetry(ENDPOINT, {}, 0)
 
     expect(res.status).toBe(429)
     expect(fetchMock).toHaveBeenCalledTimes(1)
@@ -78,7 +78,7 @@ describe("postWithRetry", () => {
     const controller = new AbortController()
     const fetchMock = installFetch(async () => new Response("boom", { status: 503 }))
 
-    const promise = postWithRetry(URL, { signal: controller.signal }, 1_000)
+    const promise = postWithRetry(ENDPOINT, { signal: controller.signal }, 1_000)
     setTimeout(() => controller.abort(), 20)
 
     await expect(promise).rejects.toMatchObject({ name: "AbortError" })
@@ -116,19 +116,15 @@ describe("callViaCodexImages", () => {
 
   test("posts an edits request when reference images are given", async () => {
     const fetchMock = installFetch(async () => imageResponse("B64"))
+    const refs = ["data:image/png;base64,AAA", "data:image/jpeg;base64,BBB"]
 
-    await callViaCodexImages(
-      AUTH,
-      { ...ARGS, size: "2048x1152" },
-      ["data:image/png;base64,AAA", "data:image/jpeg;base64,BBB"],
-      TURN,
-    )
+    await callViaCodexImages(AUTH, ARGS, refs, TURN)
 
     const [url] = fetchMock.mock.calls[0]
     expect(url).toBe("https://chatgpt.com/backend-api/codex/images/edits")
     expect(sentBody(fetchMock)).toEqual({
-      images: [{ image_url: "data:image/png;base64,AAA" }, { image_url: "data:image/jpeg;base64,BBB" }],
-      prompt: `${ARGS.prompt}\n\nOutput image size — width: 2048px, height: 1152px.`,
+      images: refs.map((image_url) => ({ image_url })),
+      prompt: ARGS.prompt,
       background: "auto",
       model: "gpt-image-2",
       quality: "auto",
