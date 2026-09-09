@@ -28,11 +28,16 @@ export async function pickNonOverwritePath(requested: string, maxVersion = MAX_O
 }
 
 export function buildSavedMessage(savedPath: string, requestedPath: string): string {
+  // The copy-don't-move instruction is codex's output hint. Without it, agentic callers
+  // "fix" the path deviation with mv/rm, defeating the non-overwrite guarantee.
+  // https://github.com/openai/codex/blob/c77c34ed33877a6e5b3759703d01d3b223274cbf/codex-rs/ext/image-generation/src/artifact.rs#L38-L48
   const versionNote =
     savedPath !== requestedPath
-      ? ` (the requested path ${requestedPath} already existed; the new image was versioned to avoid overwriting it)`
+      ? ` The requested path ${requestedPath} already existed, so the image was saved under a versioned name` +
+        " to prevent data loss. If you need the image at another path, copy it and leave the original in place" +
+        " unless the user explicitly asks you to move or delete it."
       : ""
-  return `Generated image saved to ${savedPath}${versionNote}.`
+  return `Generated image saved to ${savedPath}.${versionNote}`
 }
 
 type SaveResult = { savedPath: string; versioned: boolean; message: string }
