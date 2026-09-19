@@ -54,11 +54,20 @@ The previous `character.png` is left untouched; the new image lands at `characte
 
 <p align="center"><img src="./assets/character-v2.png" alt="Example B output: woman in yukata, landscape (auto-versioned)" width="480" /></p>
 
-### Example C — feed existing image files as input
+### Example C — feed existing images as input
 
-Pass any number of image paths via the `images` argument and the model uses them as references for the next generation — for style guidance, characters to keep, scenes to extend, and so on.
+Pass local image paths, HTTP(S) URLs, or image data URIs via the `images`
+argument and the model uses them as references for the next generation — for
+style guidance, characters to keep, scenes to extend, and so on. Remote URLs
+are sent unchanged so the provider fetches those images directly instead of
+uploading their bytes from the OpenCode host.
 
 > Take `character.png` and `character-v2.png` and put both characters together on the engawa of an old Japanese house, smiling at the viewer. 2048x1152, same 90s anime style.
+
+For reusable references stored on a public CDN, URLs work directly:
+
+> Use `https://cdn.example.com/characters/hero-a1b2c3.webp` as the identity
+> reference and create a moonlit portrait.
 
 <p align="center"><img src="./assets/together.png" alt="Example C output: both characters composed onto an engawa" width="640" /></p>
 

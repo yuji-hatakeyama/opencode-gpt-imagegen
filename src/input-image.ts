@@ -12,9 +12,25 @@ async function readImageAsDataUrl(filePath: string, ctxDir: string): Promise<str
   return `data:${detected.mime};base64,${buf.toString("base64")}`
 }
 
-// Read the optional reference image paths and encode them as data URLs the Codex
-// backend accepts as input_image content. Paths resolve relative to the OpenCode
-// context directory unless absolute.
-export async function readReferenceImages(paths: string[] | undefined, ctxDir: string): Promise<string[]> {
-  return Promise.all((paths ?? []).map((p) => readImageAsDataUrl(p, ctxDir)))
+function resolveRemoteReference(reference: string): string | undefined {
+  if (reference.startsWith("data:image/")) return reference
+  if (/^https?:\/\//i.test(reference)) {
+    const url = new URL(reference)
+    if (url.protocol !== "http:" && url.protocol !== "https:") {
+      throw new Error(`unsupported reference image URL protocol: ${url.protocol}`)
+    }
+    return reference
+  }
+  if (/^[a-z][a-z0-9+.-]*:\/\//i.test(reference)) {
+    throw new Error(`unsupported reference image URL protocol: ${new URL(reference).protocol}`)
+  }
+  return undefined
+}
+
+// Preserve remote URLs and data URIs so the Codex backend can fetch or consume
+// them directly. Local paths remain compatible and are encoded as data URLs.
+export async function readReferenceImages(references: string[] | undefined, ctxDir: string): Promise<string[]> {
+  return Promise.all(
+    (references ?? []).map((reference) => resolveRemoteReference(reference) ?? readImageAsDataUrl(reference, ctxDir)),
+  )
 }
