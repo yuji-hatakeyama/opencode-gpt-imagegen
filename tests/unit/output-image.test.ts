@@ -112,4 +112,19 @@ describe("saveGeneratedImage", () => {
     // The original file is left untouched.
     expect(existsSync(first.savedPath)).toBe(true)
   })
+
+  test("atomically versions simultaneous saves to the same path", async () => {
+    const results = await Promise.all([
+      saveGeneratedImage("image.png", dir, PNG_BASE64),
+      saveGeneratedImage("image.png", dir, PNG_BASE64),
+    ])
+
+    expect(results.map(({ savedPath }) => savedPath).sort()).toEqual([
+      path.join(dir, "image-v2.png"),
+      path.join(dir, "image.png"),
+    ])
+    for (const { savedPath } of results) {
+      expect((await readFile(savedPath)).equals(PNG_BUFFER)).toBe(true)
+    }
+  })
 })

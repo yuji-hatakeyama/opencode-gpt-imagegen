@@ -74,6 +74,14 @@ Pass any number of image paths via the `images` argument and the model uses them
 
 OpenCode already talks to the OpenAI Codex backend to power ChatGPT subscription chat. This plugin reuses that same endpoint, attaching the hosted `image_generation` tool to a single-turn request, then writes the returned PNG to disk. Auth is read from OpenCode's standard `auth.json`; no new credential surface is introduced.
 
+## Security and file access
+
+Reference image paths are intentionally not restricted: files that you explicitly select can live anywhere you have access to them. Each selected reference image is uploaded to the ChatGPT Codex backend with the generation request.
+
+The plugin cannot reliably distinguish a human-selected path from a path proposed by an agent. When agents may process untrusted repository content or prompts, use a host-level permission or confirmation mechanism before allowing a reference-image read. Do not rely on a tool argument such as `confirmed: true`; an agent can set it itself.
+
+Generated images use exclusive file creation, so concurrent calls that request the same output path preserve existing files and receive versioned names instead.
+
 ## Disclaimer
 
 This is an **unofficial, third-party** plugin, not affiliated with or endorsed by OpenAI or OpenCode.
