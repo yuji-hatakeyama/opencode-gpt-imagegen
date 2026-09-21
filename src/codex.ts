@@ -43,6 +43,7 @@ export async function callViaCodexResponses(
   auth: OpenAIAuth,
   args: GenerateArgs,
   inputImageDataUrls: string[],
+  signal?: AbortSignal,
 ): Promise<string> {
   const userContent: Array<Record<string, unknown>> = [{ type: "input_text", text: args.prompt }]
   for (const dataUrl of inputImageDataUrls) {
@@ -80,6 +81,7 @@ export async function callViaCodexResponses(
       Accept: "text/event-stream",
     },
     body: JSON.stringify(body),
+    signal,
   })
   if (!res.ok || !res.body) {
     const detail = await res.text().catch(() => "")

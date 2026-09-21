@@ -132,6 +132,19 @@ describe("callViaCodexResponses", () => {
     expect(body.input[0].content).toEqual([{ type: "input_text", text: "a cat" }])
   })
 
+  test("forwards the abort signal to fetch", async () => {
+    const fetchMock = mock(async (_url: string, _init: RequestInit) => new Response(imageDoneEvent("PARSED")))
+    globalThis.fetch = fetchMock as unknown as typeof fetch
+
+    const auth = { type: "oauth", access: "tok" } as const
+    const args: GenerateArgs = { prompt: "a cat", out: "cat.png", quality: "auto" }
+    const controller = new AbortController()
+    await callViaCodexResponses(auth, args, [], controller.signal)
+
+    const [, init] = fetchMock.mock.calls[0]
+    expect(init.signal).toBe(controller.signal)
+  })
+
   test("throws with the status and response body when the request fails", async () => {
     const fetchMock = mock(async (_url: string, _init: RequestInit) => new Response("upstream boom", { status: 500 }))
     globalThis.fetch = fetchMock as unknown as typeof fetch
