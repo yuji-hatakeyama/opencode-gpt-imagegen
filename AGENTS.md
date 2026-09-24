@@ -29,7 +29,7 @@
 
 - The exposed tool is `gpt_imagegen`; it calls the ChatGPT Codex responses endpoint with the hosted `image_generation` tool.
 - Output paths are resolved relative to the OpenCode context directory unless absolute, and existing files are never overwritten; suffixes `-v2` through `-v999` are tried.
-- Reference images are read from paths relative to the OpenCode context directory and are embedded as data URLs after MIME detection.
+- HTTP(S) reference URLs and image data URIs pass through unchanged. Local paths resolve relative to the OpenCode context directory and are embedded as data URLs after MIME detection.
 
 ## Publishing
 
