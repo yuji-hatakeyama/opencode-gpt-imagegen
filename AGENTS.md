@@ -3,7 +3,8 @@
 ## Project Shape
 
 - Bun is the package manager/runtime; use `bun install --frozen-lockfile` with the committed `bun.lock`.
-- The plugin entry is `src/index.ts` (plugin wiring + tool schema); helpers live in role-based modules — `src/types.ts` (shared types), `src/auth.ts` (auth resolution), `src/input-image.ts` (reference image reading), `src/output-image.ts` (non-overwriting save + message), `src/codex.ts` (Codex backend call + SSE parsing).
+- The plugin entry is `src/index.ts` (plugin wiring + v1 tool schema); helpers live in role-based modules — `src/types.ts` (shared types), `src/tool-spec.ts` (tool description + shared JSON Schema), `src/v2.ts` (v2 setup entrypoint), `src/generate.ts` (generation flow shared by both entrypoints), `src/auth.ts` (auth resolution), `src/input-image.ts` (reference image reading), `src/output-image.ts` (non-overwriting save + message), `src/codex.ts` (Codex backend call + SSE parsing).
+- The default export serves both plugin APIs: `server()` for v1 and `id` + `setup()` for v2. `src/v2.ts` declares the subset of the v2 context it uses instead of depending on `@opencode/plugin`, which is versioned in lockstep with the app.
 - `bun run build` bundles `src` into a single self-contained `dist/index.js` via `bun build --target node --format esm --packages external` (dependencies, including the `@opencode-ai/plugin` peer dep, stay external). Bundling avoids the extensionless relative imports `tsc` would emit, which native Node ESM cannot resolve. No `.d.ts` is published — the plugin is loaded by OpenCode at runtime, not imported as a typed library.
 - `dist/` is ignored locally but is the publish artifact (just `index.js`). Run `bun run build` before inspecting package output.
 - `bunfig.toml` enforces `install.minimumReleaseAge = 604800` (1 week): newly published versions are filtered out by `bun install` / `bun add` / `bun outdated`.

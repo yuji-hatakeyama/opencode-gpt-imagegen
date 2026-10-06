@@ -17,7 +17,7 @@
         "typescript": "^7.0.2",
       },
       "peerDependencies": {
-        "@opencode-ai/plugin": "^1.14.0",
+        "@opencode-ai/plugin": "^1.18.29",
       },
     },
   },
