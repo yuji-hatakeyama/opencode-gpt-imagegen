@@ -1,61 +1,28 @@
-import type { Hooks, Plugin, PluginInput, PluginModule } from "@opencode-ai/plugin"
-import { tool } from "@opencode-ai/plugin"
-import { loadOpenAIAuth } from "./auth"
-import { callViaCodexResponses } from "./codex"
-import { readReferenceImages } from "./input-image"
-import { saveGeneratedImage } from "./output-image"
+import { Plugin } from "@opencode/plugin"
+import type { Plugin as LegacyPlugin, PluginModule } from "@opencode-ai/plugin"
+import { loadOpenAIAuth, loadOpenAIAuthFromConnection } from "./auth"
+import { generateImage, IMAGE_ARGUMENT_DESCRIPTIONS, IMAGE_TOOL_DESCRIPTION } from "./image-generation"
+import type { GenerateArgs } from "./types"
 
-const GptImagePlugin: Plugin = async (_input: PluginInput): Promise<Hooks> => {
+const GptImagePlugin: LegacyPlugin = async () => {
+  // Load the V1 SDK only when V1 calls server(), not during V2 plugin setup.
+  const { tool } = await import("@opencode-ai/plugin")
   return {
     tool: {
       gpt_imagegen: tool({
-        description: [
-          "Generate raster images using OpenAI's hosted image_generation tool.",
-          "Use for AI-created bitmap visuals such as photos, illustrations, textures, sprites, and mockups.",
-          "Do not use when the task is better handled by editing existing SVG/vector/code-native assets, extending an established icon or logo system, or building the visual directly in HTML/CSS/canvas.",
-          "Reference images may be attached through `images`; label each image's role inline in `prompt`, for example: 'Image 1: reference image'.",
-          "For many distinct assets, invoke gpt_imagegen once per requested asset rather than relying on multi-image output; gpt_imagegen returns one image per call.",
-          "Requires OpenCode to be authenticated with ChatGPT OAuth. Returns the absolute path of the saved PNG.",
-        ].join(" "),
+        description: IMAGE_TOOL_DESCRIPTION,
         // https://developers.openai.com/api/docs/guides/image-generation
         args: {
-          prompt: tool.schema.string().describe("Description of the image to generate."),
-          out: tool.schema
-            .string()
-            .describe("Output file path, relative to the project directory unless absolute. The plugin writes a PNG."),
-          quality: tool.schema
-            .enum(["low", "medium", "high", "auto"])
-            .describe("Generation quality passed to the hosted image_generation tool."),
-          size: tool.schema
-            .string()
-            .optional()
-            .describe(
-              "Optional image size passed to the hosted image_generation tool. Use `auto` or `WIDTHxHEIGHT`; width and height must be multiples of 16px, max edge <= 3840px, long-to-short ratio <= 3:1, and total pixels between 655,360 and 8,294,400.",
-            ),
-          images: tool.schema
-            .array(tool.schema.string())
-            .optional()
-            .describe("Optional reference image paths, relative to the project directory unless absolute."),
+          prompt: tool.schema.string().describe(IMAGE_ARGUMENT_DESCRIPTIONS.prompt),
+          out: tool.schema.string().describe(IMAGE_ARGUMENT_DESCRIPTIONS.out),
+          quality: tool.schema.enum(["low", "medium", "high", "auto"]).describe(IMAGE_ARGUMENT_DESCRIPTIONS.quality),
+          size: tool.schema.string().optional().describe(IMAGE_ARGUMENT_DESCRIPTIONS.size),
+          images: tool.schema.array(tool.schema.string()).optional().describe(IMAGE_ARGUMENT_DESCRIPTIONS.images),
         },
         async execute(args, ctx) {
           const auth = await loadOpenAIAuth()
-          if (!auth) {
-            throw new Error("OpenAI ChatGPT OAuth credentials not configured.")
-          }
-
-          const inputImageDataUrls = await readReferenceImages(args.images, ctx.directory)
-          const base64 = await callViaCodexResponses(auth, args, inputImageDataUrls)
-
-          const { savedPath, versioned, message } = await saveGeneratedImage(args.out, ctx.directory, base64)
-
-          return {
-            output: message,
-            metadata: {
-              out: savedPath,
-              versioned,
-              billing: "subscription",
-            },
-          }
+          const result = await generateImage(auth, args, ctx.directory, ctx.abort)
+          return { output: result.content, metadata: result.metadata }
         },
       }),
     },
@@ -63,6 +30,44 @@ const GptImagePlugin: Plugin = async (_input: PluginInput): Promise<Hooks> => {
 }
 
 export default {
-  id: "opencode-gpt-imagegen",
+  ...Plugin.define({
+    id: "opencode-gpt-imagegen",
+    async setup(ctx) {
+      await ctx.tool.transform((editor) => {
+        editor.add({
+          name: "gpt_imagegen",
+          description: IMAGE_TOOL_DESCRIPTION,
+          input: {
+            type: "object",
+            properties: {
+              prompt: { type: "string", description: IMAGE_ARGUMENT_DESCRIPTIONS.prompt },
+              out: { type: "string", description: IMAGE_ARGUMENT_DESCRIPTIONS.out },
+              quality: {
+                type: "string",
+                enum: ["low", "medium", "high", "auto"],
+                description: IMAGE_ARGUMENT_DESCRIPTIONS.quality,
+              },
+              size: { type: "string", description: IMAGE_ARGUMENT_DESCRIPTIONS.size },
+              images: {
+                type: "array",
+                items: { type: "string" },
+                description: IMAGE_ARGUMENT_DESCRIPTIONS.images,
+              },
+            },
+            required: ["prompt", "out", "quality"],
+            additionalProperties: false,
+          },
+          async execute(input, context) {
+            context.signal.throwIfAborted()
+            const auth = await loadOpenAIAuthFromConnection(ctx.integration.connection)
+            // ToolContext has no directory in V2. Resolve the invoking session's location,
+            // not the plugin's setup location, which can differ after a session move.
+            const session = await ctx.session.get({ sessionID: context.sessionID })
+            return generateImage(auth, input as GenerateArgs, session.location.directory, context.signal)
+          },
+        })
+      })
+    },
+  }),
   server: GptImagePlugin,
 } satisfies PluginModule

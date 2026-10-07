@@ -12,6 +12,7 @@ const REPO_DIR = path.resolve(import.meta.dir, "../..")
 const RUN_TIMEOUT_MS = 600_000
 const TEST_TIMEOUT_MS = RUN_TIMEOUT_MS + 10_000
 const STYLE = "hand-drawn 90s Japanese animation style"
+const IS_V2 = process.env.OPENCODE_E2E_VERSION === "2"
 
 async function buildPlugin(): Promise<void> {
   return new Promise((resolve, reject) => {
@@ -32,19 +33,36 @@ async function writeOpencodeConfig(): Promise<void> {
   await mkdir(cfgDir, { recursive: true })
   const config = {
     $schema: "https://opencode.ai/config.json",
-    plugin: [pathToFileURL(REPO_DIR).href],
-    permission: { "*": "deny", gpt_imagegen: "allow" },
+    ...(IS_V2
+      ? {
+          plugins: [pathToFileURL(REPO_DIR).href],
+          permissions: [
+            { action: "*", resource: "*", effect: "deny" },
+            { action: "gpt_imagegen", resource: "*", effect: "allow" },
+          ],
+        }
+      : {
+          plugin: [pathToFileURL(REPO_DIR).href],
+          permission: { "*": "deny", gpt_imagegen: "allow" },
+        }),
   }
   await writeFile(path.join(cfgDir, "opencode.jsonc"), JSON.stringify(config, null, 2))
 }
 
 async function runOpencode(prompt: string): Promise<void> {
   return new Promise((resolve, reject) => {
-    const args = ["run", prompt, "--dir", WORKDIR]
+    const args = IS_V2 ? ["run", "--standalone", prompt] : ["run", prompt, "--dir", WORKDIR]
     if (process.env.OPENCODE_MODEL) args.push("--model", process.env.OPENCODE_MODEL)
     const proc = spawn("opencode", args, {
+      cwd: WORKDIR,
       stdio: "inherit",
-      env: { ...process.env, XDG_CONFIG_HOME },
+      env: {
+        ...process.env,
+        XDG_CONFIG_HOME,
+        OPENCODE_CONFIG: path.join(XDG_CONFIG_HOME, "opencode", "opencode.jsonc"),
+        OPENCODE_CONFIG_CONTENT: "{}",
+        OPENCODE_SESSION_ID: undefined,
+      },
     })
     const timer = setTimeout(() => {
       proc.kill("SIGTERM")

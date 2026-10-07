@@ -43,6 +43,7 @@ export async function callViaCodexResponses(
   auth: OpenAIAuth,
   args: GenerateArgs,
   inputImageDataUrls: string[],
+  signal?: AbortSignal,
 ): Promise<string> {
   const dimensions = args.size?.match(/^(\d+)x(\d+)$/)
   // The Codex backend can ignore the tool's size option, so repeat concrete dimensions in the prompt.
@@ -77,6 +78,7 @@ export async function callViaCodexResponses(
 
   const res = await fetch(CODEX_RESPONSES_ENDPOINT, {
     method: "POST",
+    signal,
     headers: {
       "Content-Type": "application/json",
       Authorization: `Bearer ${auth.access}`,
