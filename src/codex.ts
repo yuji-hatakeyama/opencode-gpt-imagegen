@@ -1,4 +1,5 @@
 import { EventSourceParserStream } from "eventsource-parser/stream"
+import { appendSizeToPrompt } from "./size"
 import type { GenerateArgs, OpenAIAuth } from "./types"
 
 // Codex OAuth responses endpoint URL.
@@ -44,12 +45,9 @@ export async function callViaCodexResponses(
   args: GenerateArgs,
   inputImageDataUrls: string[],
 ): Promise<string> {
-  const dimensions = args.size?.match(/^(\d+)x(\d+)$/)
-  // The Codex backend can ignore the tool's size option, so repeat concrete dimensions in the prompt.
-  const prompt = dimensions
-    ? `${args.prompt} Generate the image with a width of ${dimensions[1]} pixels and a height of ${dimensions[2]} pixels.`
-    : args.prompt
-  const userContent: Array<Record<string, unknown>> = [{ type: "input_text", text: prompt }]
+  const userContent: Array<Record<string, unknown>> = [
+    { type: "input_text", text: appendSizeToPrompt(args.prompt, args.size) },
+  ]
   for (const dataUrl of inputImageDataUrls) {
     userContent.push({ type: "input_image", image_url: dataUrl })
   }

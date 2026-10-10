@@ -132,12 +132,14 @@ describe("gpt_imagegen e2e (subscription)", () => {
           `Content: the man from Image 1 (navy samue + red hachimaki) and the woman from Image 2 (yellow yukata + red wagasa) standing side by side ` +
           `on the engawa veranda of an old Japanese house, smiling at the viewer. ` +
           `Preserve each character's outfit, hairstyle, and props exactly. ` +
-          `Style: ${STYLE}. Size: 2048x1152. Quality: medium.`,
+          `Style: ${STYLE}. Size: 1672x941. Quality: medium.`,
       )
       const out = path.join(WORKDIR, "together.png")
-      // XXX: The Codex backend can return a different size even when width and height are explicit.
-      // This case intentionally checks PNG validity without asserting exact dimensions.
-      await assertPng(out)
+      const buf = await assertPng(out)
+      const { width, height } = readPngDimensions(buf)
+      // The backend sometimes returns this size with an edge 1px off (e.g. 1672x940).
+      expect(Math.abs(width - 1672)).toBeLessThanOrEqual(1)
+      expect(Math.abs(height - 941)).toBeLessThanOrEqual(1)
       console.log(`C: ${out}`)
     },
     TEST_TIMEOUT_MS,

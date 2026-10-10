@@ -58,17 +58,19 @@ describe("pickNonOverwritePath", () => {
 })
 
 describe("buildSavedMessage", () => {
-  test("omits the version note when the path was not changed", () => {
+  const size = { width: 1672, height: 941 }
+
+  test("reports the path and pixel size without a version note when the path was not changed", () => {
     const p = "/tmp/image.png"
-    expect(buildSavedMessage(p, p)).toBe(`Generated image saved to ${p}.`)
+    expect(buildSavedMessage(p, p, size)).toBe(`Generated image saved to ${p}. The image is 1672x941 pixels.`)
   })
 
   test("explains the versioning when the saved path differs from the requested one", () => {
     const saved = "/tmp/image-v2.png"
     const requested = "/tmp/image.png"
-    expect(buildSavedMessage(saved, requested)).toBe(
+    expect(buildSavedMessage(saved, requested, size)).toBe(
       `Generated image saved to ${saved} (the requested path ${requested} already existed; ` +
-        "the new image was versioned to avoid overwriting it).",
+        "the new image was versioned to avoid overwriting it). The image is 1672x941 pixels.",
     )
   })
 })
@@ -81,6 +83,12 @@ describe("saveGeneratedImage", () => {
     expect(result.versioned).toBe(false)
     const written = await readFile(result.savedPath)
     expect(written.equals(PNG_BUFFER)).toBe(true)
+  })
+
+  test("reports the pixel size read from the PNG in the message", async () => {
+    // PNG_BASE64 is a 1x1 image.
+    const result = await saveGeneratedImage("image.png", dir, PNG_BASE64)
+    expect(result.message).toBe(`Generated image saved to ${result.savedPath}. The image is 1x1 pixels.`)
   })
 
   test("resolves a relative path against the context directory", async () => {
@@ -107,7 +115,7 @@ describe("saveGeneratedImage", () => {
     expect(second.versioned).toBe(true)
     expect(second.message).toBe(
       `Generated image saved to ${second.savedPath} (the requested path ${first.savedPath} already existed; ` +
-        "the new image was versioned to avoid overwriting it).",
+        "the new image was versioned to avoid overwriting it). The image is 1x1 pixels.",
     )
     // The original file is left untouched.
     expect(existsSync(first.savedPath)).toBe(true)

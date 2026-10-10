@@ -82,7 +82,7 @@ describe("callViaCodexResponses", () => {
     globalThis.fetch = fetchMock as unknown as typeof fetch
 
     const auth = { type: "oauth", access: "tok", accountId: "acct" } as const
-    const args: GenerateArgs = { prompt: "a cat", out: "cat.png", quality: "high", size: "1024x1024" }
+    const args: GenerateArgs = { prompt: "a cat", out: "cat.png", quality: "high", size: "1254x1254" }
     const result = await callViaCodexResponses(auth, args, ["data:image/png;base64,AAA"])
 
     expect(result).toBe("PARSED")
@@ -109,35 +109,15 @@ describe("callViaCodexResponses", () => {
       type: "image_generation",
       output_format: "png",
       quality: "high",
-      size: "1024x1024",
+      size: "1254x1254",
     })
     expect(body.input[0].content).toEqual([
       {
         type: "input_text",
-        text: "a cat Generate the image with a width of 1024 pixels and a height of 1024 pixels.",
+        text: "a cat Generate the image with a width of 1254 pixels and a height of 1254 pixels (1:1 aspect ratio).",
       },
       { type: "input_image", image_url: "data:image/png;base64,AAA" },
     ])
-  })
-
-  test("includes explicit width and height in the prompt when a rectangular size is specified", async () => {
-    const fetchMock = mock(async (_url: string, _init: RequestInit) => new Response(imageDoneEvent("PARSED")))
-    globalThis.fetch = fetchMock as unknown as typeof fetch
-    const auth = { type: "oauth", access: "tok" } as const
-    const prompt = "a woman in a garden"
-    const args: GenerateArgs = { prompt, out: "garden.png", quality: "medium", size: "1536x1024" }
-
-    await callViaCodexResponses(auth, args, [])
-
-    const [, init] = fetchMock.mock.calls[0]
-    const body = JSON.parse(init.body as string)
-    expect(body.input[0].content).toEqual([
-      {
-        type: "input_text",
-        text: `${prompt} Generate the image with a width of 1536 pixels and a height of 1024 pixels.`,
-      },
-    ])
-    expect(body.tools[0].size).toBe("1536x1024")
   })
 
   test("omits optional fields when size, accountId, and reference images are absent", async () => {
@@ -153,21 +133,6 @@ describe("callViaCodexResponses", () => {
     const body = JSON.parse(init.body as string)
     expect(body.tools[0]).not.toHaveProperty("size")
     expect(body.input[0].content).toEqual([{ type: "input_text", text: "a cat" }])
-  })
-
-  test("keeps the prompt unchanged when size is auto", async () => {
-    const fetchMock = mock(async (_url: string, _init: RequestInit) => new Response(imageDoneEvent("PARSED")))
-    globalThis.fetch = fetchMock as unknown as typeof fetch
-    const auth = { type: "oauth", access: "tok" } as const
-    const prompt = "a cat"
-    const args: GenerateArgs = { prompt, out: "cat.png", quality: "auto", size: "auto" }
-
-    await callViaCodexResponses(auth, args, [])
-
-    const [, init] = fetchMock.mock.calls[0]
-    const body = JSON.parse(init.body as string)
-    expect(body.input[0].content).toEqual([{ type: "input_text", text: prompt }])
-    expect(body.tools[0].size).toBe("auto")
   })
 
   test("throws with the status and response body when the request fails", async () => {

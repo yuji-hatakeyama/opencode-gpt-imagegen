@@ -27,12 +27,20 @@ export async function pickNonOverwritePath(requested: string, maxVersion = MAX_O
   )
 }
 
-export function buildSavedMessage(savedPath: string, requestedPath: string): string {
+type PixelSize = { width: number; height: number }
+
+// The width and height sit at fixed offsets in the IHDR chunk, which always follows the 8-byte PNG signature.
+function readPngSize(png: Buffer): PixelSize {
+  return { width: png.readUInt32BE(16), height: png.readUInt32BE(20) }
+}
+
+// The pixel size is reported because the backend can return an edge 1px off from the requested size.
+export function buildSavedMessage(savedPath: string, requestedPath: string, size: PixelSize): string {
   const versionNote =
     savedPath !== requestedPath
       ? ` (the requested path ${requestedPath} already existed; the new image was versioned to avoid overwriting it)`
       : ""
-  return `Generated image saved to ${savedPath}${versionNote}.`
+  return `Generated image saved to ${savedPath}${versionNote}. The image is ${size.width}x${size.height} pixels.`
 }
 
 type SaveResult = { savedPath: string; versioned: boolean; message: string }
@@ -45,10 +53,11 @@ export async function saveGeneratedImage(out: string, ctxDir: string, base64: st
   const requestedPath = path.isAbsolute(out) ? out : path.resolve(ctxDir, out)
   await fs.mkdir(path.dirname(requestedPath), { recursive: true })
   const savedPath = await pickNonOverwritePath(requestedPath)
-  await fs.writeFile(savedPath, Buffer.from(base64, "base64"))
+  const png = Buffer.from(base64, "base64")
+  await fs.writeFile(savedPath, png)
   return {
     savedPath,
     versioned: savedPath !== requestedPath,
-    message: buildSavedMessage(savedPath, requestedPath),
+    message: buildSavedMessage(savedPath, requestedPath, readPngSize(png)),
   }
 }
