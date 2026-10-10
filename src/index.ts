@@ -13,7 +13,7 @@ const GptImagePlugin: Plugin = async (_input: PluginInput): Promise<Hooks> => {
           "Generate raster images using OpenAI's hosted image_generation tool.",
           "Use for AI-created bitmap visuals such as photos, illustrations, textures, sprites, and mockups.",
           "Do not use when the task is better handled by editing existing SVG/vector/code-native assets, extending an established icon or logo system, or building the visual directly in HTML/CSS/canvas.",
-          "Reference images may be attached through `images`; label each image's role inline in `prompt`, for example: 'Image 1: reference image'.",
+          "Reference images may be attached through `images` as local paths, HTTP(S) URLs, or image data URIs; label each image's role inline in `prompt`, for example: 'Image 1: reference image'.",
           "For many distinct assets, invoke gpt_imagegen once per requested asset rather than relying on multi-image output; gpt_imagegen returns one image per call.",
           "Requires OpenCode to be authenticated with ChatGPT OAuth. Returns the absolute path of the saved PNG.",
         ].join(" "),
@@ -35,7 +35,9 @@ const GptImagePlugin: Plugin = async (_input: PluginInput): Promise<Hooks> => {
           images: tool.schema
             .array(tool.schema.string())
             .optional()
-            .describe("Optional reference image paths, relative to the project directory unless absolute."),
+            .describe(
+              "Optional reference image local paths, HTTP(S) URLs, or image data URIs. Relative paths resolve from the project directory.",
+            ),
         },
         async execute(args, ctx) {
           const auth = await loadOpenAIAuth()
