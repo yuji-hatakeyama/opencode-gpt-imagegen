@@ -1,0 +1,10 @@
+# yaml-language-server: $schema=https://coderabbit.ai/integrations/schema.v2.json
+reviews:
+  pre_merge_checks:
+    docstrings:
+      mode: "off"
+    title:
+      requirements: >-
+        Follow Conventional Commits (e.g. `fix: ...`, `feat: ...`, `docs: ...`).
+        The title becomes a release-note entry, so describe what changes for plugin users rather than how the code changes.
+        If the change breaks existing usage, such as removing or restricting a `gpt_imagegen` argument, add `!` after the type (e.g. `feat!: ...`).
