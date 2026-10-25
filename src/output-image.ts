@@ -67,10 +67,16 @@ type SaveResult = { savedPath: string; versioned: boolean; message: string }
 // decoded PNG. Avoiding an overwrite is best-effort: the collision check and the
 // write are not atomic, so a concurrent writer racing between them could still be
 // clobbered. Returns the user-facing message alongside the saved path.
-export async function saveGeneratedImage(out: string, ctxDir: string, base64: string): Promise<SaveResult> {
+export async function saveGeneratedImage(
+  out: string,
+  ctxDir: string,
+  base64: string,
+  beforeWrite?: (savedPath: string) => Promise<void>,
+): Promise<SaveResult> {
   const requestedPath = path.isAbsolute(out) ? out : path.resolve(ctxDir, out)
-  await ensureDir(path.dirname(requestedPath))
   const savedPath = await pickNonOverwritePath(requestedPath)
+  await beforeWrite?.(savedPath)
+  await ensureDir(path.dirname(savedPath))
   const png = Buffer.from(base64, "base64")
   await fs.writeFile(savedPath, png)
   return {

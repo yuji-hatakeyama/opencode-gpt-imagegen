@@ -1,6 +1,8 @@
+import path from "node:path"
+import { pathToFileURL } from "node:url"
 import type { Hooks, Plugin, PluginInput, PluginModule, PluginOptions } from "@opencode-ai/plugin"
 import { tool } from "@opencode-ai/plugin"
-import { loadOpenAIAuth } from "./auth"
+import { type IntegrationAuth, loadOpenAIAuth, loadOpenAIIntegrationAuth } from "./auth"
 import { type CodexImagesTarget, callViaCodexImages, chatGptImagesTarget, proxyImagesTarget } from "./codex"
 import { readReferenceImages } from "./input-image"
 import { saveGeneratedImage } from "./output-image"
@@ -62,7 +64,10 @@ const optionsSchema = tool.schema.object({
     .optional(),
 })
 
-async function resolveImagesTarget(options: PluginOptions | undefined): Promise<CodexImagesTarget> {
+async function resolveImagesTarget(
+  options: PluginOptions | undefined,
+  integration?: IntegrationAuth,
+): Promise<CodexImagesTarget> {
   const parsed = optionsSchema.safeParse(options ?? {})
   if (!parsed.success) {
     throw new Error(`invalid opencode-gpt-imagegen options: ${tool.schema.prettifyError(parsed.error)}`)
@@ -70,11 +75,30 @@ async function resolveImagesTarget(options: PluginOptions | undefined): Promise<
   if (parsed.data.baseURL) {
     return proxyImagesTarget(parsed.data.baseURL)
   }
-  const auth = await loadOpenAIAuth()
+  const auth = integration ? await loadOpenAIIntegrationAuth(integration) : await loadOpenAIAuth()
   if (!auth) {
     throw new Error("OpenAI ChatGPT OAuth credentials not configured.")
   }
   return chatGptImagesTarget(auth)
+}
+
+async function generateImage(
+  rawArgs: unknown,
+  directory: string,
+  options?: PluginOptions,
+  integration?: IntegrationAuth,
+  signal?: AbortSignal,
+  beforeWrite?: (savedPath: string) => Promise<void>,
+) {
+  const parsed = argsSchema.safeParse(rawArgs)
+  if (!parsed.success) throw new Error(tool.schema.prettifyError(parsed.error))
+  signal?.throwIfAborted()
+  const target = await resolveImagesTarget(options, integration)
+  const inputImageDataUrls = await readReferenceImages(parsed.data.images, directory)
+  const base64 = await callViaCodexImages(target, parsed.data, inputImageDataUrls, signal)
+  signal?.throwIfAborted()
+  const { savedPath, versioned, message } = await saveGeneratedImage(parsed.data.out, directory, base64, beforeWrite)
+  return { output: message, metadata: { out: savedPath, versioned } }
 }
 
 const GptImagePlugin: Plugin = async (_input: PluginInput, options?: PluginOptions): Promise<Hooks> => {
@@ -100,32 +124,103 @@ const GptImagePlugin: Plugin = async (_input: PluginInput, options?: PluginOptio
         ].join(" "),
         args: argsShape,
         async execute(rawArgs, ctx) {
-          const parsed = argsSchema.safeParse(rawArgs)
-          if (!parsed.success) {
-            throw new Error(tool.schema.prettifyError(parsed.error))
-          }
-          const args = parsed.data
-          const target = await resolveImagesTarget(options)
-
-          const inputImageDataUrls = await readReferenceImages(args.images, ctx.directory)
-          const base64 = await callViaCodexImages(target, args, inputImageDataUrls)
-
-          const { savedPath, versioned, message } = await saveGeneratedImage(args.out, ctx.directory, base64)
-
-          return {
-            output: message,
-            metadata: {
-              out: savedPath,
-              versioned,
-            },
-          }
+          return generateImage(rawArgs, ctx.directory, options)
         },
       }),
     },
   }
 }
 
+// Structural boundary avoids loading a second Effect runtime into the host.
+// The Promise plugin contract is documented at /v2/docs/build/plugins.
+export type V2Execution = { sessionID: string; messageID: string; id: string; agent: string; signal: AbortSignal }
+export type V2Tool = {
+  name: string
+  description: string
+  input: Record<string, unknown>
+  execute(
+    input: unknown,
+    context: V2Execution,
+  ): Promise<{
+    content: Array<{ type: "text"; text: string } | { type: "file"; uri: string; mime: string }>
+    metadata: Record<string, unknown>
+  }>
+}
+export type V2Context = {
+  options: PluginOptions
+  integration: IntegrationAuth
+  session: { get(input: { sessionID: string }): Promise<{ location: { directory: string } }> }
+  permission: {
+    assert(input: {
+      sessionID: string
+      agent: string
+      source: { type: "tool"; messageID: string; id: string }
+      action: string
+      resources: string[]
+    }): Promise<void>
+  }
+  tool: { transform(callback: (editor: { add(tool: V2Tool): void }) => void): Promise<unknown> }
+}
+
+async function setupGptImageV2(ctx: V2Context): Promise<void> {
+  // Reuse the V1 description and validation, but not its auth-file lookup.
+  const legacy = await GptImagePlugin({} as PluginInput, ctx.options)
+  const description = legacy.tool?.gpt_imagegen?.description ?? "Generate an image using Codex OAuth."
+  await ctx.tool.transform((editor) => {
+    editor.add({
+      name: "gpt_imagegen",
+      description,
+      input: tool.schema.toJSONSchema(argsSchema),
+      async execute(input, context) {
+        const args = argsSchema.parse(input)
+        const session = await ctx.session.get({ sessionID: context.sessionID })
+        const directory = session.location.directory
+        if (!path.isAbsolute(directory)) throw new Error("OpenCode did not supply an absolute session directory.")
+        const requestedPath = path.resolve(directory, args.out)
+        const permissionSource = {
+          sessionID: context.sessionID,
+          agent: context.agent,
+          source: { type: "tool" as const, messageID: context.messageID, id: context.id },
+        }
+        await ctx.permission.assert({
+          ...permissionSource,
+          action: "edit",
+          resources: [requestedPath],
+        })
+        for (const reference of args.images ?? []) {
+          await ctx.permission.assert({
+            ...permissionSource,
+            action: "read",
+            resources: [path.resolve(directory, reference)],
+          })
+        }
+        const result = await generateImage(
+          args,
+          directory,
+          ctx.options,
+          ctx.integration,
+          context.signal,
+          async (savedPath) => {
+            if (savedPath !== requestedPath) {
+              await ctx.permission.assert({ ...permissionSource, action: "edit", resources: [savedPath] })
+            }
+            context.signal.throwIfAborted()
+          },
+        )
+        return {
+          content: [
+            { type: "text", text: result.output },
+            { type: "file", uri: pathToFileURL(result.metadata.out).href, mime: "image/png" },
+          ],
+          metadata: result.metadata,
+        }
+      },
+    })
+  })
+}
+
 export default {
   id: "opencode-gpt-imagegen",
   server: GptImagePlugin,
-} satisfies PluginModule
+  setup: setupGptImageV2,
+} satisfies PluginModule & { setup: typeof setupGptImageV2 }
