@@ -3,7 +3,7 @@ import { type CodexImagesTarget, callViaCodexImages, chatGptImagesTarget, proxyI
 import { readReferenceImages } from "./input-image"
 import { saveGeneratedImage } from "./output-image"
 import { IMAGE_SIZES, type ImageSize, SIZE_CHOICES } from "./size"
-import type { ImagegenResult, OpenAIAuth } from "./types"
+import type { ImagegenResult, LoadOpenAIAuth } from "./types"
 
 // https://developers.openai.com/api/docs/guides/image-generation
 const argsShape = {
@@ -62,7 +62,7 @@ const optionsSchema = z.object({
 
 async function resolveImagesTarget(
   options: Record<string, unknown> | undefined,
-  loadAuth: () => Promise<OpenAIAuth | undefined>,
+  loadOpenAIAuth: LoadOpenAIAuth,
 ): Promise<CodexImagesTarget> {
   const parsed = optionsSchema.safeParse(options ?? {})
   if (!parsed.success) {
@@ -71,7 +71,7 @@ async function resolveImagesTarget(
   if (parsed.data.baseURL) {
     return proxyImagesTarget(parsed.data.baseURL)
   }
-  const auth = await loadAuth()
+  const auth = await loadOpenAIAuth()
   if (!auth) {
     throw new Error("OpenAI ChatGPT OAuth credentials not configured.")
   }
@@ -86,7 +86,7 @@ export type ImagegenTool = {
 
 export function createImagegenTool(
   options: Record<string, unknown> | undefined,
-  loadAuth: () => Promise<OpenAIAuth | undefined>,
+  loadOpenAIAuth: LoadOpenAIAuth,
 ): ImagegenTool {
   const authNote = options?.baseURL
     ? "Sends requests to the proxy set by the plugin's `baseURL` option instead of ChatGPT, so ChatGPT OAuth is not used."
@@ -113,7 +113,7 @@ export function createImagegenTool(
         throw new Error(z.prettifyError(parsed.error))
       }
       const args = parsed.data
-      const target = await resolveImagesTarget(options, loadAuth)
+      const target = await resolveImagesTarget(options, loadOpenAIAuth)
 
       const inputImageDataUrls = await readReferenceImages(args.images, directory)
       const base64 = await callViaCodexImages(target, args, inputImageDataUrls, signal)

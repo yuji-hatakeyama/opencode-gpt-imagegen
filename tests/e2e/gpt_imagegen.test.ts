@@ -13,15 +13,15 @@ const RUN_TIMEOUT_MS = 600_000
 const TEST_TIMEOUT_MS = RUN_TIMEOUT_MS + 10_000
 const STYLE = "hand-drawn 90s Japanese animation style"
 
-async function buildPlugin(): Promise<void> {
+async function runCommand(command: string, args: string[]): Promise<void> {
   return new Promise((resolve, reject) => {
-    const proc = spawn("bun", ["run", "build"], {
+    const proc = spawn(command, args, {
       cwd: REPO_DIR,
       stdio: "inherit",
     })
     proc.on("error", reject)
     proc.on("close", (code) => {
-      if (code !== 0) reject(new Error(`bun run build failed (exit=${code})`))
+      if (code !== 0) reject(new Error(`${command} ${args.join(" ")} failed (exit=${code})`))
       else resolve()
     })
   })
@@ -32,19 +32,37 @@ async function writeOpencodeConfig(): Promise<void> {
   await mkdir(cfgDir, { recursive: true })
   const config = {
     $schema: "https://opencode.ai/config.json",
-    plugin: [pathToFileURL(REPO_DIR).href],
-    permission: { "*": "deny", gpt_imagegen: "allow" },
+    // OpenCode 2.1.1 resolves local directories by their root index, not package.json exports.
+    plugins: [pathToFileURL(path.join(REPO_DIR, "dist")).href],
+    // Denying execute also removes Code Mode's filesystem/session utilities.
+    permissions: [
+      { action: "*", resource: "*", effect: "deny" },
+      { action: "gpt_imagegen", resource: "*", effect: "allow" },
+    ],
   }
   await writeFile(path.join(cfgDir, "opencode.jsonc"), JSON.stringify(config, null, 2))
 }
 
 async function runOpencode(prompt: string): Promise<void> {
   return new Promise((resolve, reject) => {
-    const args = ["run", prompt, "--dir", WORKDIR]
+    const args = ["run", "--standalone", prompt]
     if (process.env.OPENCODE_MODEL) args.push("--model", process.env.OPENCODE_MODEL)
     const proc = spawn("opencode", args, {
-      stdio: "inherit",
-      env: { ...process.env, XDG_CONFIG_HOME },
+      cwd: WORKDIR,
+      // OpenCode waits for EOF on piped stdin before sending the prompt.
+      stdio: ["ignore", "inherit", "inherit"],
+      // Isolate configuration in the private server while retaining the credential data directory.
+      env: {
+        ...process.env,
+        // V2 run prefers PWD over the process working directory.
+        PWD: WORKDIR,
+        XDG_CONFIG_HOME,
+        OPENCODE_CONFIG_DIR: path.join(XDG_CONFIG_HOME, "opencode"),
+        OPENCODE_CONFIG: undefined,
+        OPENCODE_CONFIG_CONTENT: undefined,
+        OPENCODE_CONFIG_PROJECT_DISABLE: undefined,
+        OPENCODE_DISABLE_PROJECT_CONFIG: "1",
+      },
     })
     const timer = setTimeout(() => {
       proc.kill("SIGTERM")
@@ -86,9 +104,10 @@ function readPngColorType(buf: Buffer): number {
 
 describe("gpt_imagegen e2e", () => {
   beforeAll(async () => {
+    await runCommand("opencode", ["--version"])
     console.log(`WORKDIR: ${WORKDIR}`)
     console.log(`XDG_CONFIG_HOME: ${XDG_CONFIG_HOME}`)
-    await buildPlugin()
+    await runCommand("bun", ["run", "build"])
     await writeOpencodeConfig()
   })
 

@@ -3,7 +3,7 @@ import * as path from "node:path"
 import type { Plugin } from "@opencode-ai/plugin"
 import { xdgData } from "xdg-basedir"
 import { createImagegenTool } from "./imagegen"
-import type { OpenAIAuth } from "./types"
+import type { LoadOpenAIAuth, OpenAIAuth } from "./types"
 
 // Mirrors V1's auth resolution: OPENCODE_AUTH_CONTENT overrides $XDG_DATA_HOME/opencode/auth.json.
 // V1 does not expose its Auth service to external plugins.
@@ -18,7 +18,7 @@ async function loadAuthData(): Promise<Record<string, unknown>> {
   return JSON.parse(raw) as Record<string, unknown>
 }
 
-async function loadOpenAIAuth(): Promise<OpenAIAuth | undefined> {
+const loadOpenAIAuth: LoadOpenAIAuth = async (): Promise<OpenAIAuth | undefined> => {
   try {
     const data = await loadAuthData()
     const entry = data.openai as Partial<OpenAIAuth> | undefined
