@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, mock, test } from "bun:test"
-import { mkdtemp, readFile, rm } from "node:fs/promises"
+import { mkdtemp, readdir, readFile, rm } from "node:fs/promises"
 import os from "node:os"
 import path from "node:path"
 import type { PluginInput, ToolContext } from "@opencode-ai/plugin"
@@ -30,6 +30,30 @@ function imagesResponse(b64Json: string): Response {
 }
 
 describe("plugin.server", () => {
+  test("cancels an in-flight image request without saving a file when the tool is aborted (#136)", async () => {
+    const controller = new AbortController()
+    const reason = new Error("Generation cancelled")
+    const backend = Bun.serve({
+      hostname: "127.0.0.1",
+      port: 0,
+      fetch() {
+        controller.abort(reason)
+        return imagesResponse(PNG_BASE64)
+      },
+    })
+    try {
+      const hooks = await plugin.server({} as PluginInput, { baseURL: backend.url.href })
+      const ctx = { directory: dir, abort: controller.signal } as ToolContext
+
+      const result = hooks.tool?.gpt_imagegen?.execute({ prompt: "a cat", out: "cat.png", size: "1254x1254" }, ctx)
+
+      await expect(result).rejects.toThrow(reason.message)
+      expect(await readdir(dir)).toEqual([])
+    } finally {
+      await backend.stop(true)
+    }
+  })
+
   test("uses ChatGPT OAuth credentials and returns the saved image's output and metadata", async () => {
     const access = "tok"
     const accountId = "acct"

@@ -39,7 +39,7 @@ export const server: Plugin = async (_input, options) => {
         description: imagegen.description,
         args: imagegen.schema.shape,
         async execute(input, context) {
-          const result = await imagegen.execute(input, context.directory)
+          const result = await imagegen.execute(input, context.directory, context.abort)
           return {
             output: result.message,
             metadata: { out: result.savedPath, versioned: result.versioned },

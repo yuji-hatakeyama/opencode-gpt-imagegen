@@ -81,7 +81,7 @@ async function resolveImagesTarget(
 export type ImagegenTool = {
   description: string
   schema: typeof argsSchema
-  execute(input: unknown, directory: string): Promise<ImagegenResult>
+  execute(input: unknown, directory: string, signal?: AbortSignal): Promise<ImagegenResult>
 }
 
 export function createImagegenTool(
@@ -107,7 +107,7 @@ export function createImagegenTool(
       "The saved image can differ from the requested size by 1px, so do not promise exact pixel dimensions before generating. After generating, tell the user the size reported in the tool result.",
     ].join(" "),
     schema: argsSchema,
-    async execute(input, directory) {
+    async execute(input, directory, signal) {
       const parsed = argsSchema.safeParse(input)
       if (!parsed.success) {
         throw new Error(z.prettifyError(parsed.error))
@@ -116,7 +116,7 @@ export function createImagegenTool(
       const target = await resolveImagesTarget(options, loadAuth)
 
       const inputImageDataUrls = await readReferenceImages(args.images, directory)
-      const base64 = await callViaCodexImages(target, args, inputImageDataUrls)
+      const base64 = await callViaCodexImages(target, args, inputImageDataUrls, signal)
 
       return saveGeneratedImage(args.out, directory, base64)
     },
