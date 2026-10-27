@@ -1,7 +1,13 @@
 import type { ImageSize } from "./size"
 
-// Minimal subset of OpenCode auth.json's openai OAuth entry required by this plugin.
+// Credentials needed by the Codex Images endpoints.
 export type OpenAIAuth = { type: "oauth"; access: string; accountId?: string }
+
+export type ImagegenResult = {
+  savedPath: string
+  versioned: boolean
+  message: string
+}
 
 export type GenerateArgs = {
   prompt: string
