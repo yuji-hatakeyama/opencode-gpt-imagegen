@@ -1,5 +1,5 @@
 import type { Hooks, Plugin, PluginInput, PluginModule, PluginOptions } from "@opencode-ai/plugin"
-import { tool } from "@opencode-ai/plugin"
+import { z } from "zod"
 import { loadOpenAIAuth } from "./auth"
 import { type CodexImagesTarget, callViaCodexImages, chatGptImagesTarget, proxyImagesTarget } from "./codex"
 import { readReferenceImages } from "./input-image"
@@ -8,11 +8,11 @@ import { IMAGE_SIZES, type ImageSize, SIZE_CHOICES } from "./size"
 
 // https://developers.openai.com/api/docs/guides/image-generation
 const argsShape = {
-  prompt: tool.schema.string().describe("Description of the image to generate."),
-  out: tool.schema
+  prompt: z.string().describe("Description of the image to generate."),
+  out: z
     .string()
     .describe("Output file path, relative to the project directory unless absolute. The plugin writes a PNG."),
-  size: tool.schema
+  size: z
     .enum(Object.keys(IMAGE_SIZES) as [ImageSize, ...ImageSize[]], {
       error: (issue) =>
         issue.input == null
@@ -27,13 +27,13 @@ const argsShape = {
     ),
   // Same limit as Codex (MAX_EDIT_IMAGES).
   // https://github.com/openai/codex/blob/a4ebc509f4cdff88a8e58e175541970a30a2d385/codex-rs/ext/image-generation/src/tool.rs#L59
-  images: tool.schema
-    .array(tool.schema.string())
+  images: z
+    .array(z.string())
     .max(5)
     .nullish()
     .describe("Optional reference image paths, up to 5, relative to the project directory unless absolute."),
   // https://github.com/openai/codex/blob/a4ebc509f4cdff88a8e58e175541970a30a2d385/codex-rs/ext/image-generation/imagegen_description.md?plain=1#L9
-  background: tool.schema
+  background: z
     .enum(["opaque", "transparent"])
     .nullish()
     .describe(
@@ -47,13 +47,13 @@ const argsShape = {
 
 // Some OpenCode versions (e.g. 1.18.34) do not validate plugin tool arguments before calling execute,
 // so execute validates them against the same schema.
-const argsSchema = tool.schema.object(argsShape)
+const argsSchema = z.object(argsShape)
 
 // Plugin options, given as `["opencode-gpt-imagegen", { ... }]` in the OpenCode config.
 // `baseURL` sends requests to a proxy serving the Codex images endpoints instead of ChatGPT itself.
 // A query or fragment would make the endpoint URL resolution drop the last path segment of baseURL.
-const optionsSchema = tool.schema.object({
-  baseURL: tool.schema
+const optionsSchema = z.object({
+  baseURL: z
     .url({ protocol: /^https?$/ })
     .refine((value) => {
       const url = new URL(value)
@@ -65,7 +65,7 @@ const optionsSchema = tool.schema.object({
 async function resolveImagesTarget(options: PluginOptions | undefined): Promise<CodexImagesTarget> {
   const parsed = optionsSchema.safeParse(options ?? {})
   if (!parsed.success) {
-    throw new Error(`invalid opencode-gpt-imagegen options: ${tool.schema.prettifyError(parsed.error)}`)
+    throw new Error(`invalid opencode-gpt-imagegen options: ${z.prettifyError(parsed.error)}`)
   }
   if (parsed.data.baseURL) {
     return proxyImagesTarget(parsed.data.baseURL)
@@ -83,7 +83,7 @@ const GptImagePlugin: Plugin = async (_input: PluginInput, options?: PluginOptio
     : "Requires OpenCode to be authenticated with ChatGPT OAuth."
   return {
     tool: {
-      gpt_imagegen: tool({
+      gpt_imagegen: {
         description: [
           "Generate raster images through the image generation endpoints of the ChatGPT Codex backend.",
           "Use for AI-created bitmap visuals such as photos, illustrations, textures, sprites, and mockups.",
@@ -102,7 +102,7 @@ const GptImagePlugin: Plugin = async (_input: PluginInput, options?: PluginOptio
         async execute(rawArgs, ctx) {
           const parsed = argsSchema.safeParse(rawArgs)
           if (!parsed.success) {
-            throw new Error(tool.schema.prettifyError(parsed.error))
+            throw new Error(z.prettifyError(parsed.error))
           }
           const args = parsed.data
           const target = await resolveImagesTarget(options)
@@ -120,7 +120,7 @@ const GptImagePlugin: Plugin = async (_input: PluginInput, options?: PluginOptio
             },
           }
         },
-      }),
+      },
     },
   }
 }

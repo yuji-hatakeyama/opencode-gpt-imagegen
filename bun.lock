@@ -7,6 +7,7 @@
       "dependencies": {
         "file-type": "^22.0.1",
         "xdg-basedir": "^5.1.0",
+        "zod": "4.1.8",
       },
       "devDependencies": {
         "@biomejs/biome": "^2.5.3",
@@ -14,9 +15,6 @@
         "@tsconfig/node22": "^22.0.2",
         "@types/bun": "^1.3.14",
         "typescript": "^7.0.2",
-      },
-      "peerDependencies": {
-        "@opencode-ai/plugin": "^1.14.0",
       },
     },
   },
