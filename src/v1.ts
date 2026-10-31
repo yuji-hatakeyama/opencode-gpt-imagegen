@@ -18,7 +18,7 @@ async function loadAuthData(): Promise<Record<string, unknown>> {
   return JSON.parse(raw) as Record<string, unknown>
 }
 
-const loadOpenAIAuth: LoadOpenAIAuth = async (): Promise<OpenAIAuth | undefined> => {
+const loadOpenAIAuth: LoadOpenAIAuth = async () => {
   try {
     const data = await loadAuthData()
     const entry = data.openai as Partial<OpenAIAuth> | undefined

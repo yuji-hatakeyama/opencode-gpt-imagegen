@@ -1,10 +1,10 @@
 import type { Plugin } from "@opencode/plugin/promise/plugin"
 import { z } from "zod"
 import { createImagegenTool } from "./imagegen"
-import type { LoadOpenAIAuth, OpenAIAuth } from "./types"
+import type { LoadOpenAIAuth } from "./types"
 
 export const setup: Plugin["setup"] = async (context) => {
-  const loadOpenAIAuth: LoadOpenAIAuth = async (): Promise<OpenAIAuth | undefined> => {
+  const loadOpenAIAuth: LoadOpenAIAuth = async () => {
     const connection = await context.integration.connection.active("openai")
     const credential = connection ? await context.integration.connection.resolve(connection) : undefined
     if (!credential) return undefined
