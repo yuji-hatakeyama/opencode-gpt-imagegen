@@ -4,7 +4,7 @@
 
 > **📣 `1.0.0` changes how `gpt_imagegen` is used.** `size` now accepts only seven fixed sizes, and `quality` is removed. See the [release notes](https://github.com/yuji-hatakeyama/opencode-gpt-imagegen/releases/tag/v1.0.0) for all changes.
 
-> **📣 OpenAI API key support is on hold.** This plugin supports only ChatGPT sign-in. If you need API key support, please share your use case in [#120](https://github.com/yuji-hatakeyama/opencode-gpt-imagegen/issues/120).
+> **📣 OpenAI API key support is on hold.** This plugin uses Codex OAuth with a ChatGPT subscription. If you need API key support, please share your use case in [#120](https://github.com/yuji-hatakeyama/opencode-gpt-imagegen/issues/120).
 
 <p align="center"><img src="./ogp.png" alt="opencode-gpt-imagegen × gpt-image-2" /></p>
 
@@ -23,7 +23,18 @@
 
 ## Installation
 
-Add this plugin to your [OpenCode config](https://opencode.ai/docs/plugins/). For example, in `opencode.json`:
+The same package supports OpenCode V1 (1.18.29 or newer) and V2 (2.0.0 or newer).
+
+For V2, add this plugin to your [OpenCode config](https://opencode.ai/v2/docs/plugins/):
+
+```json
+{
+  "$schema": "https://opencode.ai/config.json",
+  "plugins": ["opencode-gpt-imagegen"]
+}
+```
+
+For V1, use the singular `plugin` field:
 
 ```json
 {
@@ -32,11 +43,23 @@ Add this plugin to your [OpenCode config](https://opencode.ai/docs/plugins/). Fo
 }
 ```
 
-OpenCode auto-installs the package via Bun on next launch — no separate `npm install` step is needed. The plugin requires OpenCode to be authenticated with ChatGPT, unless you send requests through a proxy as described in [Sending requests through a proxy](#sending-requests-through-a-proxy).
+OpenCode installs the package automatically. Unless you use a proxy, sign in to OpenAI with Codex OAuth. On V2, run `/connect`, select OpenAI, and choose **Codex browser (legacy)** or **Codex device code (legacy)**. The **Sign in with ChatGPT** option uses token sharing, which [does not support image generation](https://developers.openai.com/siwc/token-sharing-open-source/preview-limitations).
+
+V2 uses the currently active OpenAI connection and lets OpenCode refresh its token. It does not fall back to V1's `auth.json` or the Codex CLI's credentials. V1 retains its existing ChatGPT OAuth setup.
 
 ### Sending requests through a proxy
 
 Set `baseURL` if you reach ChatGPT through a gateway rather than signing OpenCode in to ChatGPT yourself, for example a local proxy that holds one or more ChatGPT sign-ins and spreads requests across them. In that setup OpenCode's `auth.json` usually has no ChatGPT sign-in, and calling chatgpt.com directly would bypass the gateway.
+
+On V2, pass options with the package object:
+
+```json
+{
+  "plugins": [{ "package": "opencode-gpt-imagegen", "options": { "baseURL": "http://127.0.0.1:3457/v1" } }]
+}
+```
+
+On V1, use the package-and-options tuple:
 
 ```json
 {
@@ -44,7 +67,7 @@ Set `baseURL` if you reach ChatGPT through a gateway rather than signing OpenCod
 }
 ```
 
-With `baseURL` set, the plugin does not read `auth.json` and sends the proxy no credentials. It sends the same requests it would send to ChatGPT, to `<baseURL>/images/generations`, or to `<baseURL>/images/edits` when reference images are given. Your proxy works with this option if it:
+With `baseURL` set, the plugin skips authentication lookup and sends the proxy no credentials on both versions. It sends the same requests it would send to ChatGPT, to `<baseURL>/images/generations`, or to `<baseURL>/images/edits` when reference images are given. Your proxy works with this option if it:
 - accepts those two `POST` routes without an `Authorization` header;
 - forwards the JSON body unchanged to the Codex images endpoints (`https://chatgpt.com/backend-api/codex/images/generations` and `/edits`), signed in with a ChatGPT account. The body has `prompt`, `model`, `quality`, `size` and `background`, plus `images` (a list of `{ "image_url": "data:..." }`) for edits;
 - answers with the backend's JSON, in which `data[0].b64_json` holds the PNG. Any non-2xx status is reported as an error together with the start of the response body.
@@ -53,7 +76,9 @@ The request takes as long as the backend needs to draw the image, often 30 secon
 
 ### Updating the plugin
 
-OpenCode caches npm plugins, so restarting it may keep an older version. To update this plugin:
+On V2, update an unpinned package with `opencode plugin update opencode-gpt-imagegen`. If you pinned an exact version, update that version in your configuration. See [OpenCode's plugin management guide](https://opencode.ai/v2/docs/plugins/#manage).
+
+On V1, OpenCode caches npm plugins, so restarting it may keep an older version. To update this plugin:
 1. Check the `plugin` entry in your OpenCode config. Use `"opencode-gpt-imagegen"` or `"opencode-gpt-imagegen@latest"` to request the latest version. If you pinned a version, remove the version suffix or change it to the version you want to install.
 2. Quit OpenCode completely.
 3. If your entry is unversioned or uses `@latest`, delete the cached directory `~/.cache/opencode/packages/opencode-gpt-imagegen@latest/`.
@@ -65,7 +90,7 @@ If you use an unversioned entry or `@latest` but do not have that directory, see
 
 Just ask your agent in natural language and `gpt_imagegen` will be picked up.
 
-The four examples below are the **actual prompts and outputs of this repo's e2e test suite** — see [`tests/e2e/gpt_imagegen.test.ts`](./tests/e2e/gpt_imagegen.test.ts) for the assertions. The e2e prompts name the tool and the output path explicitly to keep the test runs predictable. In normal use, you can just describe the image you want.
+The four examples below are the **actual prompts and outputs of this repo's e2e test suite** — see [`tests/e2e/gpt_imagegen.test.ts`](./tests/e2e/gpt_imagegen.test.ts) for the assertions. Run the suite on V2 with `bun run test:e2e`; it prints the OpenCode version before building the plugin and generating images. The e2e prompts name the tool and the output path explicitly to keep the test runs predictable. In normal use, you can just describe the image you want.
 
 ### Example A — generate
 
@@ -109,7 +134,7 @@ If you ask for an unsupported size, the tool instructs the agent to ask you whic
 
 ## How it works
 
-OpenCode already talks to the OpenAI Codex backend to power ChatGPT subscription chat. This plugin calls the image generation endpoints of that backend (`images/generations`, or `images/edits` when reference images are given), the same endpoints the Codex CLI uses, and writes the returned PNG to disk. Auth is read from OpenCode's standard `auth.json`; no new credential surface is introduced.
+This plugin calls the image generation endpoints of the OpenAI Codex backend (`images/generations`, or `images/edits` when reference images are given), the same endpoints the Codex CLI uses, and writes the returned PNG to disk. V1 reads `OPENCODE_AUTH_CONTENT` first, then OpenCode's `auth.json`. V2 resolves the active OpenAI connection through OpenCode's integration API.
 
 ## Contributing
 

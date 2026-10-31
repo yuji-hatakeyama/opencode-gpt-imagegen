@@ -39,6 +39,7 @@ export async function callViaCodexImages(
   target: CodexImagesTarget,
   args: GenerateArgs,
   inputImageDataUrls: string[],
+  signal?: AbortSignal,
 ): Promise<string> {
   const isEdit = inputImageDataUrls.length > 0
   const body = {
@@ -56,6 +57,7 @@ export async function callViaCodexImages(
       originator: "opencode",
     },
     body: JSON.stringify(body),
+    signal,
   })
   if (!res.ok) {
     const detail = await res.text().catch(() => "")
