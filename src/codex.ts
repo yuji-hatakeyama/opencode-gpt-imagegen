@@ -39,6 +39,7 @@ export async function callViaCodexImages(
   target: CodexImagesTarget,
   args: GenerateArgs,
   inputImageDataUrls: string[],
+  signal?: AbortSignal,
 ): Promise<string> {
   const isEdit = inputImageDataUrls.length > 0
   const body = {
@@ -56,10 +57,20 @@ export async function callViaCodexImages(
       originator: "opencode",
     },
     body: JSON.stringify(body),
+    signal: signal ? AbortSignal.any([signal, AbortSignal.timeout(300_000)]) : AbortSignal.timeout(300_000),
   })
   if (!res.ok) {
-    const detail = await res.text().catch(() => "")
-    throw new Error(`codex images request failed: ${res.status} ${detail.slice(0, 500)}`)
+    let detail = await res.text().catch(() => "")
+    for (const secret of Object.values(target.headers)) {
+      if (secret) detail = detail.replaceAll(secret, "[redacted]")
+    }
+    const token = target.headers.Authorization?.replace(/^Bearer /, "")
+    if (token) detail = detail.replaceAll(token, "[redacted]")
+    const hint =
+      (res.status === 401 || res.status === 403) && token
+        ? " Use a Codex browser/device OAuth connection; ChatGPT subscription-sharing tokens may not support images."
+        : ""
+    throw new Error(`codex images request failed: ${res.status} ${detail.slice(0, 500)}${hint}`)
   }
   const image = ((await res.json()) as CodexImagesResponse).data?.[0]?.b64_json
   // Reject an empty image too: decoding it would write a 0-byte file and report success.

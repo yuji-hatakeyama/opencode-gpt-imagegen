@@ -23,7 +23,9 @@
 
 ## Installation
 
-Add this plugin to your [OpenCode config](https://opencode.ai/docs/plugins/). For example, in `opencode.json`:
+### OpenCode V1
+
+Add this plugin to your OpenCode V1 config. For example, in `opencode.json`:
 
 ```json
 {
@@ -33,6 +35,36 @@ Add this plugin to your [OpenCode config](https://opencode.ai/docs/plugins/). Fo
 ```
 
 OpenCode auto-installs the package via Bun on next launch — no separate `npm install` step is needed. The plugin requires OpenCode to be authenticated with ChatGPT, unless you send requests through a proxy as described in [Sending requests through a proxy](#sending-requests-through-a-proxy).
+
+### OpenCode V2
+
+Use the native [`plugins` configuration](https://opencode.ai/v2/docs/build/plugins):
+
+```json
+{
+  "$schema": "https://opencode.ai/config.json",
+  "plugins": ["opencode-gpt-imagegen"]
+}
+```
+
+V2 uses the active OpenAI integration connection and lets OpenCode resolve and
+refresh its OAuth credential. It does not read `auth.json` or copy credentials
+from another application. Image generation requires a Codex-compatible OAuth
+sign-in; ChatGPT subscription-sharing tokens may be rejected by the image
+backend. If a request returns 401/403, check the sign-in method before retrying.
+
+To use a proxy in V2, pass options in the object form instead of the V1 tuple:
+
+```json
+{
+  "$schema": "https://opencode.ai/config.json",
+  "plugins": [{ "package": "opencode-gpt-imagegen", "options": { "baseURL": "http://127.0.0.1:3457/v1" } }]
+}
+```
+
+Proxy mode resolves no OpenAI credential and sends none to the proxy. For V2
+package updates, run `opencode plugin update opencode-gpt-imagegen`; the
+cache instructions below describe V1.
 
 ### Sending requests through a proxy
 
@@ -109,7 +141,7 @@ If you ask for an unsupported size, the tool instructs the agent to ask you whic
 
 ## How it works
 
-OpenCode already talks to the OpenAI Codex backend to power ChatGPT subscription chat. This plugin calls the image generation endpoints of that backend (`images/generations`, or `images/edits` when reference images are given), the same endpoints the Codex CLI uses, and writes the returned PNG to disk. Auth is read from OpenCode's standard `auth.json`; no new credential surface is introduced.
+OpenCode already talks to the OpenAI Codex backend to power ChatGPT subscription chat. This plugin calls the image generation endpoints of that backend (`images/generations`, or `images/edits` when reference images are given), the same endpoints the Codex CLI uses, and writes the returned PNG to disk. V1 reads OpenCode's standard `auth.json`; V2 resolves the active OpenAI integration credential through the host. No new credential file is introduced.
 
 ## Contributing
 
