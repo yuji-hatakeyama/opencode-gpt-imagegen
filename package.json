@@ -1,6 +1,6 @@
 {
   "name": "opencode-gpt-imagegen",
-  "version": "1.1.0",
+  "version": "1.2.0",
   "description": "OpenCode plugin for GPT Image 2 generation through your ChatGPT subscription, with reference images and safe PNG output.",
   "type": "module",
   "main": "./dist/index.js",
