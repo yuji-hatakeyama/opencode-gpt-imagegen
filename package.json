@@ -63,6 +63,9 @@
   "dependencies": {
     "file-type": "^22.0.1",
     "xdg-basedir": "^5.1.0",
-    "zod": "4.1.8"
+    "zod": "4.6.7"
+  },
+  "overrides": {
+    "zod": "$zod"
   }
 }
