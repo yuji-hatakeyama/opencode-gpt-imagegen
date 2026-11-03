@@ -52,9 +52,6 @@
   "bugs": {
     "url": "https://github.com/yuji-hatakeyama/opencode-gpt-imagegen/issues"
   },
-  "peerDependencies": {
-    "@opencode-ai/plugin": "^1.14.0"
-  },
   "devDependencies": {
     "@biomejs/biome": "^2.5.3",
     "@opencode-ai/plugin": "^1.14.41",
@@ -64,6 +61,7 @@
   },
   "dependencies": {
     "file-type": "^22.0.1",
-    "xdg-basedir": "^5.1.0"
+    "xdg-basedir": "^5.1.0",
+    "zod": "4.1.8"
   }
 }
