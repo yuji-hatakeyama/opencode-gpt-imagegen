@@ -53,6 +53,23 @@ describe("server", () => {
     })
   })
 
+  test("forwards the abort signal to fetch and propagates cancellation errors (#136)", async () => {
+    const error = new DOMException("Generation cancelled", "AbortError")
+    const signal = AbortSignal.abort(error)
+    const fetchMock = mock(async (_url: string, _init: RequestInit) => {
+      throw error
+    })
+    globalThis.fetch = fetchMock as unknown as typeof fetch
+    const hooks = await server({} as PluginInput, { baseURL: "https://proxy.example.test/v1" })
+    const context = { directory: dir, abort: signal } as ToolContext
+
+    const result = hooks.tool?.gpt_imagegen?.execute({ prompt: "a cat", out: "cat.png", size: "1254x1254" }, context)
+
+    await expect(result).rejects.toBe(error)
+    expect(fetchMock).toHaveBeenCalledTimes(1)
+    expect(fetchMock.mock.calls[0][1].signal).toBe(signal)
+  })
+
   test("registers the shared description and Zod shape (#136)", async () => {
     const imagegen = createImagegenTool(undefined, async () => undefined)
 

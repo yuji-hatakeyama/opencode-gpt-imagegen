@@ -17,7 +17,8 @@ export const setup: Plugin["setup"] = async (context) => {
       options: { codemode: false },
       async execute(args, execution) {
         const session = await context.session.get({ sessionID: execution.sessionID })
-        const result = await imagegen.execute(args, session.location.directory)
+        // Earlier V2 hosts omit signal; image generation still works without cancellation.
+        const result = await imagegen.execute(args, session.location.directory, execution.signal)
         return {
           content: result.message,
           metadata: { out: result.savedPath, versioned: result.versioned },

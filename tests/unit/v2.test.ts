@@ -105,6 +105,33 @@ describe("setup", () => {
     })
   })
 
+  test("forwards the abort signal to fetch and propagates cancellation errors (#136)", async () => {
+    const error = new DOMException("Generation cancelled", "AbortError")
+    const signal = AbortSignal.abort(error)
+    const fetchMock = mock(async (_url: string, _init: RequestInit) => {
+      throw error
+    })
+    globalThis.fetch = fetchMock as unknown as typeof fetch
+    const tool = await registerTool(
+      {
+        options: { baseURL: "https://proxy.example.test/v1" },
+        active: async () => undefined,
+        resolve: async () => undefined,
+        getSession: async () => createSession(dir),
+      },
+      dir,
+    )
+
+    const result = tool.execute({ prompt: "a cat", out: "cat.png", size: "1254x1254" }, {
+      sessionID: "ses_imagegen",
+      signal,
+    } as ToolContext)
+
+    await expect(result).rejects.toBe(error)
+    expect(fetchMock).toHaveBeenCalledTimes(1)
+    expect(fetchMock.mock.calls[0][1].signal).toBe(signal)
+  })
+
   test("registers the shared description and schema as plain JSON Schema (#136)", async () => {
     const imagegen = createImagegenTool(undefined, async () => undefined)
     const expectedInput = z.toJSONSchema(imagegen.schema, { io: "input" })
