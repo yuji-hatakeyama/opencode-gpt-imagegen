@@ -9,8 +9,9 @@ When you open a pull request, including one for the maintainer, write its descri
 ## Project Shape
 
 - Bun is the package manager/runtime; use `bun install --frozen-lockfile` with the committed `bun.lock`.
-- The plugin entry is `src/index.ts` (plugin wiring + tool schema); helpers live in role-based modules — `src/types.ts` (shared types), `src/auth.ts` (auth resolution), `src/size.ts` (supported output sizes + prompt size hint), `src/input-image.ts` (reference image reading), `src/output-image.ts` (non-overwriting save + message), `src/codex.ts` (Codex Images endpoint call).
-- `bun run build` bundles `src` into a single self-contained `dist/index.js` via `bun build --target node --format esm --packages external` (dependencies, including the `@opencode-ai/plugin` peer dep, stay external). Bundling avoids the extensionless relative imports `tsc` would emit, which native Node ESM cannot resolve. No `.d.ts` is published — the plugin is loaded by OpenCode at runtime, not imported as a typed library.
+- The plugin entry is `src/index.ts`, which exposes V1 `server` and V2 `setup`. Adapters in `src/v1.ts` and `src/v2.ts` translate host registration, credentials, session directories, and results. `src/imagegen.ts` owns the shared schema, description, validation, and generation flow. Image helpers retain their role-based modules.
+- Both SDKs are development-only type dependencies. Zod is a direct runtime dependency. V2 converts the shared schema to JSON Schema with the plugin's own Zod instance so descriptions survive a different host Zod registry.
+- `bun run build` bundles `src` into a single self-contained `dist/index.js` via `bun build --target node --format esm --packages external` (runtime dependencies stay external). Bundling avoids the extensionless relative imports `tsc` would emit, which native Node ESM cannot resolve. No `.d.ts` is published — the plugin is loaded by OpenCode at runtime, not imported as a typed library.
 - `dist/` is ignored locally but is the publish artifact (just `index.js`). Run `bun run build` before inspecting package output.
 - `bunfig.toml` enforces `install.minimumReleaseAge = 604800` (1 week): newly published versions are filtered out by `bun install` / `bun add` / `bun outdated`.
 
@@ -26,17 +27,16 @@ When you open a pull request, including one for the maintainer, write its descri
 
 ## E2E Requirements
 
-- `tests/e2e/gpt_imagegen.test.ts` shells out to the `opencode` CLI in a temporary workdir. Its configuration denies all tools except `gpt_imagegen` so the agent cannot modify generated files with other tools.
-- E2E requires OpenCode to be authenticated with ChatGPT OAuth; the plugin reads `OPENCODE_AUTH_CONTENT` first, then `$XDG_DATA_HOME/opencode/auth.json`.
+- `tests/e2e/gpt_imagegen.test.ts` prints the CLI version and runs OpenCode V2 with `--standalone` in a temporary workdir. It isolates configuration while retaining the credential data directory. Its configuration denies all tools except `gpt_imagegen` so the agent cannot modify generated files with other tools.
+- E2E requires the active OpenAI connection to use Codex browser or device-code OAuth. V2 resolves and refreshes credentials through OpenCode. Token-sharing sign-in is not supported for images. V1 separately retains `OPENCODE_AUTH_CONTENT`, then `$XDG_DATA_HOME/opencode/auth.json`.
 - The e2e tests assert that produced files are valid PNGs, and cover the plugin's output auto-versioning and transparent backgrounds.
-- The README Usage examples show the e2e prompts and outputs. When you add, remove, or change an e2e case, update the README Usage section to match:
-  - Copy each prompt with `${STYLE}` expanded, and update the example count.
-  - Replace all images in `assets/` with the outputs of one passing run, because Example C uses the outputs of A and B as reference images. The test logs the path of each output.
+- The README Usage examples show the e2e prompts and example outputs. When cases or prompts change, keep the README prompts (with `${STYLE}` expanded) and example count in sync.
+- Replace example images only when a prompt or image-generation model change makes the existing illustrations unsuitable. Routine E2E runs and harness changes do not require replacing images. When a refresh is needed, use the outputs of one passing run for all examples, because Example C uses A and B as references. The test logs each output path.
 
 ## Implementation Notes
 
 - The exposed tool is `gpt_imagegen`; it calls the ChatGPT Codex Images endpoints, `images/generations`, or `images/edits` when reference images are given.
-- The `baseURL` plugin option points those requests at a proxy serving the same endpoints instead; the proxy holds the ChatGPT credentials, so `auth.json` is not read and no credentials are sent.
+- The `baseURL` plugin option points those requests at a proxy serving the same endpoints instead; the proxy holds the ChatGPT credentials, so neither adapter looks up authentication and no credentials are sent.
 - Output paths are resolved relative to the OpenCode context directory unless absolute, and existing files are never overwritten; suffixes `-v2` through `-v999` are tried.
 - Reference images are read from paths relative to the OpenCode context directory and are embedded as data URLs after MIME detection.
 
