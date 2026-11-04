@@ -1,7 +1,5 @@
 # opencode-gpt-imagegen
 
-> **⚠️ Plugin versions before `0.1.13` no longer generate images.** [GPT-5.5 retired from Codex with ChatGPT sign-in](https://learn.chatgpt.com/docs/models#gpt-55-retirement) on October 14, 2026, and those versions use it. Follow the [update steps](#updating-the-plugin) to install the latest version.
-
 > **📣 `1.0.0` changes how `gpt_imagegen` is used.** `size` now accepts only seven fixed sizes, and `quality` is removed. See the [release notes](https://github.com/yuji-hatakeyama/opencode-gpt-imagegen/releases/tag/v1.0.0) for all changes.
 
 > **📣 OpenAI API key support is on hold.** This plugin uses Codex OAuth with a ChatGPT subscription. If you need API key support, please share your use case in [#120](https://github.com/yuji-hatakeyama/opencode-gpt-imagegen/issues/120).
