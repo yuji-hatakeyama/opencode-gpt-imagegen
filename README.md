@@ -1,5 +1,7 @@
 # opencode-gpt-imagegen
 
+> **🎉 Starting with `1.2.1`, this plugin supports both OpenCode V1 and V2!** Sorry for the long wait. On V2, sign in to OpenAI with **Codex browser (legacy)** or **Codex device code (legacy)**, because **Sign in with ChatGPT** cannot generate images. See [Installation](#installation) and the [release notes](https://github.com/yuji-hatakeyama/opencode-gpt-imagegen/releases/tag/v1.2.1).
+
 > **📣 `1.0.0` changes how `gpt_imagegen` is used.** `size` now accepts only seven fixed sizes, and `quality` is removed. See the [release notes](https://github.com/yuji-hatakeyama/opencode-gpt-imagegen/releases/tag/v1.0.0) for all changes.
 
 > **📣 OpenAI API key support is on hold.** This plugin uses Codex OAuth with a ChatGPT subscription. If you need API key support, please share your use case in [#120](https://github.com/yuji-hatakeyama/opencode-gpt-imagegen/issues/120).
