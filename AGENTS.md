@@ -8,22 +8,29 @@ When you open a pull request, including one for the maintainer, write its descri
 
 ## Project Shape
 
-- Bun is the package manager/runtime; use `bun install --frozen-lockfile` with the committed `bun.lock`.
+- npm manages the dependencies. Install them with `npm ci`, and use npm to add, update, or remove a dependency.
+- Do not manage dependencies with Bun, such as `bun install`, `bun add`, `bun update`, or `bun remove`. Bun does not update `package-lock.json`, so `npm ci` in CI fails when `package.json` changes.
+- Run every other task, such as tests, lint, and the build, through the npm scripts with `npm run <script>` or `npm test`. To run a single unit test file, `bun test <path>` is fine.
+- The npm scripts use Bun to build and test, so install Bun as well.
+- npm must be 11.10.0 or later, as `devEngines` in `package.json` requires. An older npm stops with `EBADDEVENGINES`.
+- `bun.lock` is ignored. Bun writes it from `package-lock.json` whenever `bun install` runs, even when it is told not to save a lockfile.
 - The plugin entry is `src/index.ts`, which exposes V1 `server` and V2 `setup`. Adapters in `src/v1.ts` and `src/v2.ts` translate host registration, credentials, session directories, and results. `src/imagegen.ts` owns the shared schema, description, validation, and generation flow. Image helpers retain their role-based modules.
 - Both SDKs are development-only type dependencies. Zod is a direct runtime dependency. V2 converts the shared schema to JSON Schema with the plugin's own Zod instance so descriptions survive a different host Zod registry.
-- `bun run build` bundles `src` into a single self-contained `dist/index.js` via `bun build --target node --format esm --packages external` (runtime dependencies stay external). Bundling avoids the extensionless relative imports `tsc` would emit, which native Node ESM cannot resolve. No `.d.ts` is published — the plugin is loaded by OpenCode at runtime, not imported as a typed library.
-- `dist/` is ignored locally but is the publish artifact (just `index.js`). Run `bun run build` before inspecting package output.
-- `bunfig.toml` enforces `install.minimumReleaseAge = 604800` (1 week): newly published versions are filtered out by `bun install` / `bun add` / `bun outdated`.
+- `npm run build` bundles `src` into a single self-contained `dist/index.js` via `bun build --target node --format esm --packages external` (runtime dependencies stay external). Bundling avoids the extensionless relative imports `tsc` would emit, which native Node ESM cannot resolve. No `.d.ts` is published — the plugin is loaded by OpenCode at runtime, not imported as a typed library.
+- `dist/` is ignored locally but is the publish artifact (just `index.js`). Run `npm run build` before inspecting package output.
+- `.npmrc` sets `min-release-age=2` (days). npm skips versions that were published less than 2 days ago.
+- `.npmrc` also sets `ignore-scripts=true`. npm then skips the install scripts of dependencies, and also the pre and post scripts of this package.
+- Because of `ignore-scripts`, `build` removes `dist/` itself, and the release workflow runs `npm run build` before `npm publish`.
 
 ## Commands
 
 - Tests are split by kind: `tests/unit/` (unit tests of the `src/` modules, including the plugin entry) and `tests/e2e/` (`gpt_imagegen.test.ts`).
-- `bun run typecheck` runs `tsc --noEmit` over `src` and `tests`.
-- `bunx biome ci .` is the CI formatter/linter check.
-- `bun run check` runs `biome check --write .`; it may modify files.
-- `bun run test` runs `bun test tests/unit` — unit tests only, and is what CI uses. (A bare `bun test` would also discover the e2e files under `tests/e2e/` and try to run them for real, so prefer the script.)
-- `bun run test:e2e` sets `OPENCODE_MODEL=openai/gpt-6-sol` and runs `tests/e2e/gpt_imagegen.test.ts` in its own `bun test` process, which keeps the unit tests' `process.env` edits out of the e2e `opencode` spawn. It can take minutes because it calls `opencode run` and generates real images.
-- CI runs `bun run typecheck`, `bunx biome ci .`, and `bun run test`. It does not run `bun run test:e2e`, which needs real auth and generations.
+- `npm run typecheck` runs `tsc --noEmit` over `src` and `tests`.
+- `npm run lint` runs `biome ci .`, the formatter and linter check that CI uses. It does not modify files.
+- `npm run fix` runs `biome check --write .`; it may modify files.
+- `npm test` runs `bun test tests/unit` — unit tests only, and is what CI uses. (A bare `bun test` would also discover the e2e files under `tests/e2e/` and try to run them for real, so prefer the script.)
+- `npm run test:e2e` sets `OPENCODE_MODEL=openai/gpt-6-sol` and runs `tests/e2e/gpt_imagegen.test.ts` in its own `bun test` process, which keeps the unit tests' `process.env` edits out of the e2e `opencode` spawn. It can take minutes because it calls `opencode run` and generates real images.
+- CI runs `npm run typecheck`, `npm run lint`, and `npm test`. It does not run `npm run test:e2e`, which needs real auth and generations.
 
 ## E2E Requirements
 
@@ -43,9 +50,8 @@ When you open a pull request, including one for the maintainer, write its descri
 ## Publishing
 
 - `package.json` `files` intentionally publishes only `dist`, `README.md`, and `LICENSE`.
-- `prepublishOnly` runs `bun run build`, so `npm publish` always rebuilds `dist/` first.
-- Release flow: run `bun run release:patch` (or `:minor` / `:major`) on a clean `main`. The npm script chains `scripts/prepare-release.sh <level>` (preflight, diff review, version bump) with `git push --follow-tags`. The shell script checks the working tree is clean and in sync with `origin/main`, prints the commits since the previous tag along with a GitHub compare URL for diff review, asks for confirmation, and runs `npm version <level>` to create the `chore: release X.Y.Z` commit and `vX.Y.Z` tag locally; the push happens only on success.
-- The tag push triggers `.github/workflows/release.yml`, which runs `npm publish --provenance --access public` via npm OIDC trusted publisher (no `NPM_TOKEN` secret) and creates a GitHub release with auto-generated notes. The npm package must have GitHub Actions registered as a trusted publisher on npmjs.com for OIDC to work.
+- Release flow: run `npm run release:patch` (or `:minor` / `:major`) on a clean `main`. The npm script chains `scripts/prepare-release.sh <level>` (preflight, diff review, version bump) with `git push --follow-tags`. The shell script checks the working tree is clean and in sync with `origin/main`, prints the commits since the previous tag along with a GitHub compare URL for diff review, asks for confirmation, and runs `npm version <level>` to create the `chore: release X.Y.Z` commit and `vX.Y.Z` tag locally; the push happens only on success.
+- The tag push triggers `.github/workflows/release.yml`, which runs `npm run build` and then `npm publish --provenance --access public` via npm OIDC trusted publisher (no `NPM_TOKEN` secret) and creates a GitHub release with auto-generated notes. The npm package must have GitHub Actions registered as a trusted publisher on npmjs.com for OIDC to work.
 - Release notes are generated from pull request titles. If the release includes a breaking change (a title with `!`, such as `feat!:`), edit the GitHub release after the workflow creates it, and add a `Breaking changes` section at the top. For each change, write what changed and how users should update their usage, and link the pull request, for example:
 
   ```markdown
