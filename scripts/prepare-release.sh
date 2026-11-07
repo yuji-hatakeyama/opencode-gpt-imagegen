@@ -26,6 +26,11 @@ if [ "$(git rev-parse HEAD)" != "$(git rev-parse origin/main)" ]; then
   exit 1
 fi
 
+if ! bun audit --production; then
+  echo "Error: runtime dependencies have known vulnerabilities, or the audit could not be completed" >&2
+  exit 1
+fi
+
 PREV_TAG=$(git describe --tags --abbrev=0 2>/dev/null || echo "")
 CURRENT=$(node -p "require('./package.json').version")
 NEXT=$(node -p "

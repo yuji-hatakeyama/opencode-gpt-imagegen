@@ -12,6 +12,7 @@ jobs:
         with:
           bun-version: latest
       - run: bun install --frozen-lockfile
+      - run: bun audit --production
       - run: bun run typecheck
       - run: bunx biome ci .
       - run: bun run test
