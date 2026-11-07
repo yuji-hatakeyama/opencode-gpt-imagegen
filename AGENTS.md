@@ -30,7 +30,8 @@ When you open a pull request, including one for the maintainer, write its descri
 - `npm run fix` runs `biome check --write .`; it may modify files.
 - `npm test` runs `bun test tests/unit` — unit tests only, and is what CI uses. (A bare `bun test` would also discover the e2e files under `tests/e2e/` and try to run them for real, so prefer the script.)
 - `npm run test:e2e` sets `OPENCODE_MODEL=openai/gpt-6-sol` and runs `tests/e2e/gpt_imagegen.test.ts` in its own `bun test` process, which keeps the unit tests' `process.env` edits out of the e2e `opencode` spawn. It can take minutes because it calls `opencode run` and generates real images.
-- CI runs `npm run typecheck`, `npm run lint`, and `npm test`. It does not run `npm run test:e2e`, which needs real auth and generations.
+- CI runs `npm audit --omit=dev`, `npm run typecheck`, `npm run lint`, and `npm test`. It does not run `npm run test:e2e`, which needs real auth and generations.
+- `npm audit --omit=dev` checks the runtime dependencies in `package-lock.json` for known vulnerabilities. It fails on an advisory of any severity. It also fails when the advisory lookup fails.
 
 ## E2E Requirements
 
@@ -50,8 +51,8 @@ When you open a pull request, including one for the maintainer, write its descri
 ## Publishing
 
 - `package.json` `files` intentionally publishes only `dist`, `README.md`, and `LICENSE`.
-- Release flow: run `npm run release:patch` (or `:minor` / `:major`) on a clean `main`. The npm script chains `scripts/prepare-release.sh <level>` (preflight, diff review, version bump) with `git push --follow-tags`. The shell script checks the working tree is clean and in sync with `origin/main`, prints the commits since the previous tag along with a GitHub compare URL for diff review, asks for confirmation, and runs `npm version <level>` to create the `chore: release X.Y.Z` commit and `vX.Y.Z` tag locally; the push happens only on success.
-- The tag push triggers `.github/workflows/release.yml`, which runs `npm run build` and then `npm publish --provenance --access public` via npm OIDC trusted publisher (no `NPM_TOKEN` secret) and creates a GitHub release with auto-generated notes. The npm package must have GitHub Actions registered as a trusted publisher on npmjs.com for OIDC to work.
+- Release flow: run `npm run release:patch` (or `:minor` / `:major`) on a clean `main`. The npm script chains `scripts/prepare-release.sh <level>` (preflight, diff review, version bump) with `git push --follow-tags`. The shell script checks the working tree is clean and in sync with `origin/main`, prints the commits since the previous tag along with a GitHub compare URL for diff review, asks for confirmation, and runs `npm version <level>` to create the `chore: release X.Y.Z` commit and `vX.Y.Z` tag locally; the push happens only on success. After those checks, the script runs `npm audit --omit=dev`. If the audit fails, the script exits before `npm version` creates the release commit and tag.
+- The tag push triggers `.github/workflows/release.yml`, which runs `npm run build` and then `npm publish --provenance --access public` via npm OIDC trusted publisher (no `NPM_TOKEN` secret) and creates a GitHub release with auto-generated notes. The `release` job waits for the `check` job, which runs the same `.github/workflows/_checks.yml` as CI. A failed `npm audit --omit=dev` therefore stops `npm publish`. The npm package must have GitHub Actions registered as a trusted publisher on npmjs.com for OIDC to work.
 - Release notes are generated from pull request titles. If the release includes a breaking change (a title with `!`, such as `feat!:`), edit the GitHub release after the workflow creates it, and add a `Breaking changes` section at the top. For each change, write what changed and how users should update their usage, and link the pull request, for example:
 
   ```markdown
