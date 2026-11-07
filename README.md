@@ -72,7 +72,13 @@ The request takes as long as the backend needs to draw the image, often 30 secon
 
 ### Updating the plugin
 
-On V2, update an unpinned package with `opencode plugin update opencode-gpt-imagegen`. If you pinned an exact version, update that version in your configuration. See [OpenCode's plugin management guide](https://opencode.ai/v2/docs/plugins/#manage).
+On V2, update this plugin with the OpenCode CLI:
+
+```sh
+opencode plugin update opencode-gpt-imagegen
+```
+
+See [OpenCode's plugin management guide](https://opencode.ai/v2/docs/plugins/#manage).
 
 On V1, OpenCode caches npm plugins, so restarting it may keep an older version. To update this plugin:
 
