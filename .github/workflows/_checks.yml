@@ -15,6 +15,6 @@ jobs:
         with:
           bun-version: latest
       - run: npm ci
-      - run: bun run typecheck
-      - run: bunx biome ci .
-      - run: bun run test
+      - run: npm run typecheck
+      - run: npm run lint
+      - run: npm test
