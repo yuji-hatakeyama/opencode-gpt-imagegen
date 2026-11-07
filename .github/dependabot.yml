@@ -1,9 +1,10 @@
 version: 2
 updates:
-  - package-ecosystem: "bun"
+  - package-ecosystem: "npm"
     directory: "/"
     schedule:
       interval: "daily"
+    versioning-strategy: "increase"
     cooldown:
       default-days: 2
   - package-ecosystem: "github-actions"
