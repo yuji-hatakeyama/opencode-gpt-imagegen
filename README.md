@@ -66,6 +66,7 @@ On V1, use the package-and-options tuple:
 ```
 
 With `baseURL` set, the plugin skips authentication lookup and sends the proxy no credentials on both versions. It sends the same requests it would send to ChatGPT, to `<baseURL>/images/generations`, or to `<baseURL>/images/edits` when reference images are given. Your proxy works with this option if it:
+
 - accepts those two `POST` routes without an `Authorization` header;
 - forwards the JSON body unchanged to the Codex images endpoints (`https://chatgpt.com/backend-api/codex/images/generations` and `/edits`), signed in with a ChatGPT account. The body has `prompt`, `model`, `quality`, `size` and `background`, plus `images` (a list of `{ "image_url": "data:..." }`) for edits;
 - answers with the backend's JSON, in which `data[0].b64_json` holds the PNG. Any non-2xx status is reported as an error together with the start of the response body.
@@ -77,6 +78,7 @@ The request takes as long as the backend needs to draw the image, often 30 secon
 On V2, update an unpinned package with `opencode plugin update opencode-gpt-imagegen`. If you pinned an exact version, update that version in your configuration. See [OpenCode's plugin management guide](https://opencode.ai/v2/docs/plugins/#manage).
 
 On V1, OpenCode caches npm plugins, so restarting it may keep an older version. To update this plugin:
+
 1. Check the `plugin` entry in your OpenCode config. Use `"opencode-gpt-imagegen"` or `"opencode-gpt-imagegen@latest"` to request the latest version. If you pinned a version, remove the version suffix or change it to the version you want to install.
 2. Quit OpenCode completely.
 3. If your entry is unversioned or uses `@latest`, delete the cached directory `~/.cache/opencode/packages/opencode-gpt-imagegen@latest/`.
