@@ -20,7 +20,6 @@
     "build": "rm -rf dist && bun build ./src/index.ts --outdir ./dist --target node --format esm --packages external",
     "test": "bun test tests/unit",
     "test:e2e": "OPENCODE_MODEL=openai/gpt-6-sol bun test tests/e2e/gpt_imagegen.test.ts",
-    "prepublishOnly": "bun run build",
     "release:patch": "bash scripts/prepare-release.sh patch && git push --follow-tags",
     "release:minor": "bash scripts/prepare-release.sh minor && git push --follow-tags",
     "release:major": "bash scripts/prepare-release.sh major && git push --follow-tags"
