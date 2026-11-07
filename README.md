@@ -25,13 +25,10 @@
 
 The same package supports OpenCode V1 (1.18.29 or newer) and V2 (2.0.0 or newer).
 
-For V2, add this plugin to your [OpenCode config](https://opencode.ai/v2/docs/plugins/):
+For V2, install this plugin with the [OpenCode CLI](https://opencode.ai/v2/docs/plugins/#manage):
 
-```json
-{
-  "$schema": "https://opencode.ai/config.json",
-  "plugins": ["opencode-gpt-imagegen"]
-}
+```sh
+opencode plugin add opencode-gpt-imagegen
 ```
 
 For V1, add this plugin to your [OpenCode config](https://opencode.ai/docs/plugins/) with the singular `plugin` field:
@@ -49,7 +46,7 @@ OpenCode installs the package automatically. Unless you use a proxy, sign in to 
 
 Set `baseURL` if you reach ChatGPT through a gateway rather than signing OpenCode in to ChatGPT yourself, for example a local proxy that holds one or more ChatGPT sign-ins and spreads requests across them. In that setup OpenCode's `auth.json` usually has no ChatGPT sign-in, and calling chatgpt.com directly would bypass the gateway.
 
-On V2, pass options with the package object:
+On V2, pass options with the package object in your [OpenCode config](https://opencode.ai/v2/docs/plugins/#configure):
 
 ```json
 {
