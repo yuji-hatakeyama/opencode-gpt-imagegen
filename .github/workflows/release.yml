@@ -33,7 +33,9 @@ jobs:
         with:
           node-version: "24"
           registry-url: "https://registry.npmjs.org"
-      - run: bun install --frozen-lockfile
+          # devEngines.packageManager turns on the npm cache, but this job installs nothing.
+          package-manager-cache: false
+      - run: npm run build
       - run: npm publish --provenance --access public
       - run: gh release create "$GITHUB_REF_NAME" --generate-notes
         env:

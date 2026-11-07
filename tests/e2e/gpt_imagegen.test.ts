@@ -107,7 +107,7 @@ describe("gpt_imagegen e2e", () => {
     await runCommand("opencode", ["--version"])
     console.log(`WORKDIR: ${WORKDIR}`)
     console.log(`XDG_CONFIG_HOME: ${XDG_CONFIG_HOME}`)
-    await runCommand("bun", ["run", "build"])
+    await runCommand("npm", ["run", "build"])
     await writeOpencodeConfig()
   })
 
