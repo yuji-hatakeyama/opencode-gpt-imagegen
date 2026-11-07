@@ -16,7 +16,8 @@
   ],
   "scripts": {
     "typecheck": "tsc --noEmit",
-    "check": "biome check --write .",
+    "lint": "biome ci .",
+    "fix": "biome check --write .",
     "build": "rm -rf dist && bun build ./src/index.ts --outdir ./dist --target node --format esm --packages external",
     "test": "bun test tests/unit",
     "test:e2e": "OPENCODE_MODEL=openai/gpt-6-sol bun test tests/e2e/gpt_imagegen.test.ts",
