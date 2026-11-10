@@ -140,6 +140,18 @@ describe("createImagegenTool", () => {
     expect(url).toBe("https://chatgpt.com/backend-api/codex/images/generations")
   })
 
+  test("sends an opaque background when background is null", async () => {
+    const fetchMock = mock(async (_url: string, _init: RequestInit) => imagesResponse(PNG_BASE64))
+    globalThis.fetch = fetchMock as unknown as typeof fetch
+    const imagegen = createImagegenTool(undefined, loadAuth)
+    const args = { prompt: "a cat", out: "cat.png", size: "1254x1254", background: null }
+
+    await imagegen.execute(args, dir)
+
+    const [, init] = fetchMock.mock.calls[0]
+    expect(JSON.parse(init.body as string).background).toBe("opaque")
+  })
+
   test("rejects more than five reference images without calling the backend", async () => {
     const fetchMock = mock()
     globalThis.fetch = fetchMock as unknown as typeof fetch

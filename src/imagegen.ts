@@ -1,5 +1,5 @@
 import { z } from "zod"
-import { type CodexImagesTarget, callViaCodexImages, chatGptImagesTarget, proxyImagesTarget } from "./codex"
+import { requestCodexImage } from "./codex"
 import { readReferenceImages } from "./input-image"
 import { saveGeneratedImage } from "./output-image"
 import { IMAGE_SIZES, type ImageSize, SIZE_CHOICES } from "./size"
@@ -60,22 +60,12 @@ const optionsSchema = z.object({
     .optional(),
 })
 
-async function resolveImagesTarget(
-  options: Record<string, unknown> | undefined,
-  loadOpenAIAuth: LoadOpenAIAuth,
-): Promise<CodexImagesTarget> {
+function parseOptions(options: Record<string, unknown> | undefined) {
   const parsed = optionsSchema.safeParse(options ?? {})
   if (!parsed.success) {
     throw new Error(`invalid opencode-gpt-imagegen options: ${z.prettifyError(parsed.error)}`)
   }
-  if (parsed.data.baseURL) {
-    return proxyImagesTarget(parsed.data.baseURL)
-  }
-  const auth = await loadOpenAIAuth()
-  if (!auth) {
-    throw new Error("OpenAI ChatGPT OAuth credentials not configured.")
-  }
-  return chatGptImagesTarget(auth)
+  return parsed.data
 }
 
 export type ImagegenTool = {
@@ -113,10 +103,15 @@ export function createImagegenTool(
         throw new Error(z.prettifyError(parsed.error))
       }
       const args = parsed.data
-      const target = await resolveImagesTarget(options, loadOpenAIAuth)
+      const connection = parseOptions(options)
 
-      const inputImageDataUrls = await readReferenceImages(args.images, directory)
-      const base64 = await callViaCodexImages(target, args, inputImageDataUrls, signal)
+      const images = await readReferenceImages(args.images, directory)
+      const base64 = await requestCodexImage(
+        connection,
+        loadOpenAIAuth,
+        { prompt: args.prompt, size: args.size, background: args.background ?? "opaque", images },
+        signal,
+      )
 
       return saveGeneratedImage(args.out, directory, base64)
     },

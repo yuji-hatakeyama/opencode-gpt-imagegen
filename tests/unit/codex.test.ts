@@ -1,16 +1,20 @@
 import { afterEach, describe, expect, mock, test } from "bun:test"
-import { callViaCodexImages, chatGptImagesTarget, proxyImagesTarget } from "../../src/codex"
-import type { GenerateArgs } from "../../src/types"
+import { type CodexImageRequest, requestCodexImage } from "../../src/codex"
+import type { OpenAIAuth } from "../../src/types"
 
 function imagesResponse(data: Array<{ b64_json: string }>): Response {
   return new Response(JSON.stringify({ created: 0, data }))
 }
 
-function generateArgs(overrides: Partial<GenerateArgs> = {}): GenerateArgs {
-  return { prompt: "a cat", out: "cat.png", size: "1254x1254", ...overrides }
+async function loadAuth(): Promise<OpenAIAuth> {
+  return { type: "oauth", access: "tok" }
 }
 
-describe("callViaCodexImages", () => {
+function imageRequest(overrides: Partial<CodexImageRequest> = {}): CodexImageRequest {
+  return { prompt: "a cat", size: "1254x1254", background: "opaque", images: [], ...overrides }
+}
+
+describe("requestCodexImage", () => {
   const originalFetch = globalThis.fetch
   afterEach(() => {
     globalThis.fetch = originalFetch
@@ -20,10 +24,11 @@ describe("callViaCodexImages", () => {
     const image = "BASE64IMAGE"
     const fetchMock = mock(async (_url: string, _init: RequestInit) => imagesResponse([{ b64_json: image }]))
     globalThis.fetch = fetchMock as unknown as typeof fetch
-    const auth = { type: "oauth", access: "tok", accountId: "acct" } as const
+    const auth: OpenAIAuth = { type: "oauth", access: "tok", accountId: "acct" }
     const prompt = "a mountain lake"
+    const request = imageRequest({ prompt, size: "1254x1254", background: "opaque" })
 
-    const result = await callViaCodexImages(chatGptImagesTarget(auth), generateArgs({ prompt, size: "1254x1254" }), [])
+    const result = await requestCodexImage({}, async () => auth, request)
 
     expect(result).toBe(image)
     expect(fetchMock).toHaveBeenCalledTimes(1)
@@ -48,11 +53,11 @@ describe("callViaCodexImages", () => {
   test("posts the Codex request body with the reference images to the edits endpoint when they are given", async () => {
     const fetchMock = mock(async (_url: string, _init: RequestInit) => imagesResponse([{ b64_json: "BASE64IMAGE" }]))
     globalThis.fetch = fetchMock as unknown as typeof fetch
-    const auth = { type: "oauth", access: "tok" } as const
     const prompt = "put both characters together"
     const dataUrls = ["data:image/png;base64,AAA", "data:image/jpeg;base64,BBB"]
+    const request = imageRequest({ prompt, size: "1672x941", background: "opaque", images: dataUrls })
 
-    await callViaCodexImages(chatGptImagesTarget(auth), generateArgs({ prompt, size: "1672x941" }), dataUrls)
+    await requestCodexImage({}, loadAuth, request)
 
     const [url, init] = fetchMock.mock.calls[0]
     expect(url).toBe("https://chatgpt.com/backend-api/codex/images/edits")
@@ -69,54 +74,54 @@ describe("callViaCodexImages", () => {
   test("sends the requested background", async () => {
     const fetchMock = mock(async (_url: string, _init: RequestInit) => imagesResponse([{ b64_json: "BASE64IMAGE" }]))
     globalThis.fetch = fetchMock as unknown as typeof fetch
-    const auth = { type: "oauth", access: "tok" } as const
+    const background = "transparent"
 
-    await callViaCodexImages(chatGptImagesTarget(auth), generateArgs({ background: "transparent" }), [])
-
-    const [, init] = fetchMock.mock.calls[0]
-    expect(JSON.parse(init.body as string).background).toBe("transparent")
-  })
-
-  test("sends an opaque background when background is null", async () => {
-    const fetchMock = mock(async (_url: string, _init: RequestInit) => imagesResponse([{ b64_json: "BASE64IMAGE" }]))
-    globalThis.fetch = fetchMock as unknown as typeof fetch
-    const auth = { type: "oauth", access: "tok" } as const
-
-    await callViaCodexImages(chatGptImagesTarget(auth), generateArgs({ background: null }), [])
+    await requestCodexImage({}, loadAuth, imageRequest({ background }))
 
     const [, init] = fetchMock.mock.calls[0]
-    expect(JSON.parse(init.body as string).background).toBe("opaque")
+    expect(JSON.parse(init.body as string).background).toBe(background)
   })
 
   test("omits the account header when accountId is absent", async () => {
     const fetchMock = mock(async (_url: string, _init: RequestInit) => imagesResponse([{ b64_json: "BASE64IMAGE" }]))
     globalThis.fetch = fetchMock as unknown as typeof fetch
-    const auth = { type: "oauth", access: "tok" } as const
+    const auth: OpenAIAuth = { type: "oauth", access: "tok" }
 
-    await callViaCodexImages(chatGptImagesTarget(auth), generateArgs(), [])
+    await requestCodexImage({}, async () => auth, imageRequest())
 
     const [, init] = fetchMock.mock.calls[0]
     expect(init.headers as Record<string, string>).not.toHaveProperty("ChatGPT-Account-Id")
   })
 
-  test("posts to the proxy's generations endpoint without credentials when given a proxy target", async () => {
-    const fetchMock = mock(async (_url: string, _init: RequestInit) => imagesResponse([{ b64_json: "BASE64IMAGE" }]))
+  test("throws without requesting an image when no credentials are loaded", async () => {
+    const fetchMock = mock()
     globalThis.fetch = fetchMock as unknown as typeof fetch
 
-    await callViaCodexImages(proxyImagesTarget("http://127.0.0.1:3457/v1"), generateArgs(), [])
+    const act = requestCodexImage({}, async () => undefined, imageRequest())
+
+    await expect(act).rejects.toThrow("OpenAI ChatGPT OAuth credentials not configured.")
+    expect(fetchMock).not.toHaveBeenCalled()
+  })
+
+  test("posts to the proxy's generations endpoint without loading or sending credentials when baseURL is given", async () => {
+    const fetchMock = mock(async (_url: string, _init: RequestInit) => imagesResponse([{ b64_json: "BASE64IMAGE" }]))
+    globalThis.fetch = fetchMock as unknown as typeof fetch
+    const loadSignedInAuth = mock(loadAuth)
+
+    await requestCodexImage({ baseURL: "http://127.0.0.1:3457/v1" }, loadSignedInAuth, imageRequest())
 
     const [url, init] = fetchMock.mock.calls[0]
     expect(url).toBe("http://127.0.0.1:3457/v1/images/generations")
     expect(init.headers).toEqual({ "Content-Type": "application/json", originator: "opencode" })
+    expect(loadSignedInAuth).not.toHaveBeenCalled()
   })
 
   test("posts to the proxy's edits endpoint when the proxy baseURL ends with a slash", async () => {
     const fetchMock = mock(async (_url: string, _init: RequestInit) => imagesResponse([{ b64_json: "BASE64IMAGE" }]))
     globalThis.fetch = fetchMock as unknown as typeof fetch
+    const request = imageRequest({ images: ["data:image/png;base64,AAA"] })
 
-    await callViaCodexImages(proxyImagesTarget("http://127.0.0.1:3457/v1/"), generateArgs(), [
-      "data:image/png;base64,AAA",
-    ])
+    await requestCodexImage({ baseURL: "http://127.0.0.1:3457/v1/" }, loadAuth, request)
 
     const [url, init] = fetchMock.mock.calls[0]
     expect(url).toBe("http://127.0.0.1:3457/v1/images/edits")
@@ -126,9 +131,8 @@ describe("callViaCodexImages", () => {
   test("throws with the status and response body when the request fails", async () => {
     const fetchMock = mock(async (_url: string, _init: RequestInit) => new Response("upstream boom", { status: 500 }))
     globalThis.fetch = fetchMock as unknown as typeof fetch
-    const auth = { type: "oauth", access: "tok" } as const
 
-    const act = callViaCodexImages(chatGptImagesTarget(auth), generateArgs(), [])
+    const act = requestCodexImage({}, loadAuth, imageRequest())
 
     await expect(act).rejects.toThrow("codex images request failed: 500 upstream boom")
   })
@@ -136,9 +140,8 @@ describe("callViaCodexImages", () => {
   test("throws when the response contains no image", async () => {
     const fetchMock = mock(async (_url: string, _init: RequestInit) => imagesResponse([]))
     globalThis.fetch = fetchMock as unknown as typeof fetch
-    const auth = { type: "oauth", access: "tok" } as const
 
-    const act = callViaCodexImages(chatGptImagesTarget(auth), generateArgs(), [])
+    const act = requestCodexImage({}, loadAuth, imageRequest())
 
     await expect(act).rejects.toThrow("no image returned by codex images endpoint")
   })
@@ -147,9 +150,8 @@ describe("callViaCodexImages", () => {
     // An empty image would decode to a 0-byte file and be reported as success.
     const fetchMock = mock(async (_url: string, _init: RequestInit) => imagesResponse([{ b64_json: "" }]))
     globalThis.fetch = fetchMock as unknown as typeof fetch
-    const auth = { type: "oauth", access: "tok" } as const
 
-    const act = callViaCodexImages(chatGptImagesTarget(auth), generateArgs(), [])
+    const act = requestCodexImage({}, loadAuth, imageRequest())
 
     await expect(act).rejects.toThrow("no image returned by codex images endpoint")
   })
