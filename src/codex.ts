@@ -1,5 +1,5 @@
-import { appendSizeToPrompt } from "./size"
-import type { GenerateArgs, OpenAIAuth } from "./types"
+import { appendSizeToPrompt, type ImageSize } from "./size"
+import type { LoadOpenAIAuth } from "./types"
 
 // Codex OAuth images endpoint URLs. Codex calls edits when reference images are given.
 // https://github.com/openai/codex/blob/a4ebc509f4cdff88a8e58e175541970a30a2d385/codex-rs/model-provider-info/src/lib.rs#L80
@@ -13,10 +13,29 @@ const CODEX_REQUEST_DEFAULTS = { model: "gpt-image-2", quality: "auto", size: "a
 
 type CodexImagesResponse = { data?: Array<{ b64_json?: string }> }
 
-// Where the images endpoints live and which credentials go with them.
-export type CodexImagesTarget = { baseURL: string; headers: Record<string, string> }
+export type CodexImageRequest = {
+  prompt: string
+  size: ImageSize
+  background: "opaque" | "transparent"
+  // Reference images as data URLs.
+  images: string[]
+}
 
-export function chatGptImagesTarget(auth: OpenAIAuth): CodexImagesTarget {
+// Where the images endpoints live and which credentials go with them.
+type CodexImagesTarget = { baseURL: string; headers: Record<string, string> }
+
+async function resolveImagesTarget(
+  connection: { baseURL?: string },
+  loadOpenAIAuth: LoadOpenAIAuth,
+): Promise<CodexImagesTarget> {
+  // A proxy that serves the same endpoints holds the ChatGPT credentials itself, so none are loaded or sent to it.
+  if (connection.baseURL) {
+    return { baseURL: connection.baseURL, headers: {} }
+  }
+  const auth = await loadOpenAIAuth()
+  if (!auth) {
+    throw new Error("OpenAI ChatGPT OAuth credentials not configured.")
+  }
   return {
     baseURL: CODEX_IMAGES_BASE_URL,
     headers: {
@@ -26,27 +45,24 @@ export function chatGptImagesTarget(auth: OpenAIAuth): CodexImagesTarget {
   }
 }
 
-// A proxy that serves the same endpoints holds the ChatGPT credentials itself, so none are sent to it.
-export function proxyImagesTarget(baseURL: string): CodexImagesTarget {
-  return { baseURL, headers: {} }
-}
-
 function imagesEndpoint(baseURL: string, operation: "generations" | "edits"): string {
   return new URL(`images/${operation}`, baseURL.endsWith("/") ? baseURL : `${baseURL}/`).toString()
 }
 
-export async function callViaCodexImages(
-  target: CodexImagesTarget,
-  args: GenerateArgs,
-  inputImageDataUrls: string[],
+// `connection.baseURL` sends the request to a proxy instead of ChatGPT itself.
+export async function requestCodexImage(
+  connection: { baseURL?: string },
+  loadOpenAIAuth: LoadOpenAIAuth,
+  request: CodexImageRequest,
   signal?: AbortSignal,
 ): Promise<string> {
-  const isEdit = inputImageDataUrls.length > 0
+  const target = await resolveImagesTarget(connection, loadOpenAIAuth)
+  const isEdit = request.images.length > 0
   const body = {
-    prompt: appendSizeToPrompt(args.prompt, args.size),
+    prompt: appendSizeToPrompt(request.prompt, request.size),
     ...CODEX_REQUEST_DEFAULTS,
-    background: args.background ?? "opaque",
-    ...(isEdit ? { images: inputImageDataUrls.map((dataUrl) => ({ image_url: dataUrl })) } : {}),
+    background: request.background,
+    ...(isEdit ? { images: request.images.map((dataUrl) => ({ image_url: dataUrl })) } : {}),
   }
 
   const res = await fetch(imagesEndpoint(target.baseURL, isEdit ? "edits" : "generations"), {
