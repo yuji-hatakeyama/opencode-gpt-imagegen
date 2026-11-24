@@ -106,14 +106,14 @@ export function createImagegenTool(
       const connection = parseOptions(options)
 
       const images = await readReferenceImages(args.images, directory)
-      const base64 = await requestCodexImage(
+      const { base64, ...details } = await requestCodexImage(
         connection,
         loadOpenAIAuth,
         { prompt: args.prompt, size: args.size, background: args.background ?? "opaque", images },
         signal,
       )
 
-      return saveGeneratedImage(args.out, directory, base64)
+      return saveGeneratedImage(args.out, directory, base64, details)
     },
   }
 }

@@ -30,7 +30,7 @@ describe("requestCodexImage", () => {
 
     const result = await requestCodexImage({}, async () => auth, request)
 
-    expect(result).toBe(image)
+    expect(result.base64).toBe(image)
     expect(fetchMock).toHaveBeenCalledTimes(1)
     const [url, init] = fetchMock.mock.calls[0]
     expect(url).toBe("https://chatgpt.com/backend-api/codex/images/generations")
@@ -48,6 +48,57 @@ describe("requestCodexImage", () => {
       quality: "auto",
       size: "auto",
     })
+  })
+
+  test.each([
+    {
+      name: "quality and output tokens",
+      details: { quality: "low", usage: { input_tokens: 20, output_tokens: 515, total_tokens: 535 } },
+      expected: { quality: "low", outputTokens: 515 },
+    },
+    { name: "missing usage", details: { quality: "medium" }, expected: { quality: "medium" } },
+    {
+      name: "missing output tokens in usage",
+      details: { quality: "low", usage: { input_tokens: 20, total_tokens: 20 } },
+      expected: { quality: "low" },
+    },
+    {
+      name: "missing quality and zero output tokens",
+      details: { usage: { output_tokens: 0 } },
+      expected: { outputTokens: 0 },
+    },
+    { name: "null usage", details: { quality: "low", usage: null }, expected: { quality: "low" } },
+    {
+      name: "null output tokens",
+      details: { quality: "medium", usage: { output_tokens: null } },
+      expected: { quality: "medium" },
+    },
+    {
+      name: "null quality",
+      details: { quality: null, usage: { output_tokens: 515 } },
+      expected: { outputTokens: 515 },
+    },
+    {
+      name: "non-numeric output tokens",
+      details: { quality: "low", usage: { output_tokens: "515" } },
+      expected: { quality: "low" },
+    },
+    {
+      name: "non-string quality",
+      details: { quality: {}, usage: { output_tokens: 515 } },
+      expected: { outputTokens: 515 },
+    },
+  ])("returns the image and available details for $name (#166)", async ({ details, expected }) => {
+    const image = "BASE64IMAGE"
+    globalThis.fetch = mock(async () =>
+      Response.json({ data: [{ b64_json: image }], ...details }),
+    ) as unknown as typeof fetch
+
+    const result = await requestCodexImage({}, loadAuth, imageRequest())
+
+    expect(result.base64).toBe(image)
+    expect(result.quality).toBe(expected.quality)
+    expect(result.outputTokens).toBe(expected.outputTokens)
   })
 
   test("posts the Codex request body with the reference images to the edits endpoint when they are given", async () => {

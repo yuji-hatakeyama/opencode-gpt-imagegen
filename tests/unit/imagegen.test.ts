@@ -62,8 +62,10 @@ describe("createImagegenTool", () => {
     })
   })
 
-  test("saves the generated image under the context directory and reports it", async () => {
-    const fetchMock = mock(async (_url: string, _init: RequestInit) => imagesResponse(PNG_BASE64))
+  test("saves the generated image and reports its size and backend details (#166)", async () => {
+    const fetchMock = mock(async (_url: string, _init: RequestInit) =>
+      Response.json({ data: [{ b64_json: PNG_BASE64 }], quality: "low", usage: { output_tokens: 515 } }),
+    )
     globalThis.fetch = fetchMock as unknown as typeof fetch
     const imagegen = createImagegenTool(undefined, loadAuth)
     const out = "cat.png"
@@ -75,7 +77,7 @@ describe("createImagegenTool", () => {
     expect(await readFile(savedPath)).toEqual(PNG_BUFFER)
     // PNG_BASE64 is a 1x1 image. The message reports the size of the saved image, not the requested size.
     expect(result).toEqual({
-      message: `Generated image saved to ${savedPath}. The image is 1x1 pixels.`,
+      message: `Generated image saved to ${savedPath}. The image is 1x1 pixels (quality: low, output_tokens: 515).`,
       savedPath,
       versioned: false,
     })
