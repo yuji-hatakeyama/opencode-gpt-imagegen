@@ -60,7 +60,7 @@
   "devDependencies": {
     "@biomejs/biome": "^2.6.8",
     "@opencode-ai/plugin": "^1.19.6",
-    "@opencode/plugin": "^2.3.2",
+    "@opencode/plugin": "^2.4.1",
     "@tsconfig/node22": "^22.0.7",
     "@types/bun": "^1.4.5",
     "typescript": "^7.0.2"
