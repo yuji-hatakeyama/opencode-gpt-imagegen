@@ -129,15 +129,25 @@ Ask for a transparent background, and the agent passes `background: "transparent
 
 ### Sizes
 
-`gpt_imagegen` generates only these sizes: `1254x1254` (1:1), `1536x1024` (3:2), `1024x1536` (2:3), `1448x1086` (4:3), `1086x1448` (3:4), `1672x941` (16:9), and `941x1672` (9:16).
+`gpt_imagegen` accepts these seven sizes:
 
-The Codex image backend does not take pixel dimensions. It always generates about 1.57 megapixels and takes only the aspect ratio from the prompt. These sizes are common aspect ratios at that pixel count, so the backend produces them as requested. The output can still differ from the requested size by 1px ([#107](https://github.com/yuji-hatakeyama/opencode-gpt-imagegen/issues/107#issuecomment-6020015062)).
+- `1254x1254` (1:1)
+- `1536x1024` (3:2)
+- `1024x1536` (2:3)
+- `1448x1086` (4:3)
+- `1086x1448` (3:4)
+- `1672x941` (16:9)
+- `941x1672` (9:16)
 
-If you ask for an unsupported size, the tool instructs the agent to ask you which supported size to use. The agent also asks when you give no size and the request does not imply a shape. When the request implies a shape, such as a YouTube thumbnail or an app icon, the agent picks the matching size without asking. To get another exact size, resize or crop the output afterwards, for example with ImageMagick.
+The tool adds the requested dimensions and aspect ratio to the prompt. In our tests with newly generated images ([#107](https://github.com/yuji-hatakeyama/opencode-gpt-imagegen/issues/107#issuecomment-6020015062)), the output closely matched the requested aspect ratio and was about 1.57 megapixels. For example, asking for `2048x1152` in the prompt produced a `1672x941` image at roughly 16:9.
+
+The tool reports the dimensions of the saved image. If you need exact dimensions, generate at the closest aspect ratio, then resize or crop the image with a tool such as ImageMagick.
 
 ## How it works
 
 This plugin calls the image generation endpoints of the OpenAI Codex backend (`images/generations`, or `images/edits` when reference images are given), the same endpoints the Codex CLI uses, and writes the returned PNG to disk. V1 reads `OPENCODE_AUTH_CONTENT` first, then OpenCode's `auth.json`. V2 resolves the active OpenAI connection through OpenCode's integration API.
+
+With Codex OAuth, this plugin has the same limits as the Codex CLI's built-in image generation. The backend chooses the model and quality, so the request's `model` and `quality` fields cannot override them. The request's `size` field does not let you set exact pixel dimensions either.
 
 ## Contributing
 
