@@ -9,14 +9,16 @@ import { PNG_BASE64, PNG_BUFFER } from "./fixtures"
 
 let dir: string
 
-beforeEach(async () => {
-  dir = await mkdtemp(path.join(os.tmpdir(), "out-image-"))
-})
+function useTempDirectory(): void {
+  beforeEach(async () => {
+    dir = await mkdtemp(path.join(os.tmpdir(), "out-image-"))
+  })
 
-afterEach(async () => {
-  mock.restore()
-  await rm(dir, { recursive: true, force: true })
-})
+  afterEach(async () => {
+    mock.restore()
+    await rm(dir, { recursive: true, force: true })
+  })
+}
 
 // Place a real PNG at the path so it is occupied; pickNonOverwritePath only checks existence.
 function occupy(p: string): Promise<void> {
@@ -24,6 +26,8 @@ function occupy(p: string): Promise<void> {
 }
 
 describe("pickNonOverwritePath", () => {
+  useTempDirectory()
+
   test("returns the requested path when nothing exists", async () => {
     const requested = path.join(dir, "image.png")
     expect(await pickNonOverwritePath(requested)).toBe(requested)
@@ -67,17 +71,52 @@ describe("buildSavedMessage", () => {
     expect(buildSavedMessage(p, p, size)).toBe(`Generated image saved to ${p}. The image is 1672x941 pixels.`)
   })
 
-  test("explains the versioning when the saved path differs from the requested one", () => {
+  test("explains versioning and reports the backend details (#166)", () => {
     const saved = "/tmp/image-v2.png"
     const requested = "/tmp/image.png"
-    expect(buildSavedMessage(saved, requested, size)).toBe(
+
+    const message = buildSavedMessage(saved, requested, size, { quality: "low", outputTokens: 515 })
+
+    expect(message).toBe(
       `Generated image saved to ${saved} (the requested path ${requested} already existed; ` +
-        "the new image was versioned to avoid overwriting it). The image is 1672x941 pixels.",
+        "the new image was versioned to avoid overwriting it). The image is 1672x941 pixels (quality: low, output_tokens: 515).",
     )
+  })
+
+  test.each([
+    {
+      name: "quality before output tokens",
+      details: { quality: "low", outputTokens: 515 },
+      expected: "The image is 1672x941 pixels (quality: low, output_tokens: 515).",
+    },
+    {
+      name: "quality alone",
+      details: { quality: "medium" },
+      expected: "The image is 1672x941 pixels (quality: medium).",
+    },
+    {
+      name: "output tokens alone",
+      details: { outputTokens: 515 },
+      expected: "The image is 1672x941 pixels (output_tokens: 515).",
+    },
+    {
+      name: "zero output tokens when quality is empty",
+      details: { quality: "", outputTokens: 0 },
+      expected: "The image is 1672x941 pixels (output_tokens: 0).",
+    },
+    { name: "no details", details: {}, expected: "The image is 1672x941 pixels." },
+  ])("reports $name in the saved message (#166)", ({ details, expected }) => {
+    const saved = "/tmp/image.png"
+
+    const message = buildSavedMessage(saved, saved, size, details)
+
+    expect(message).toBe(`Generated image saved to ${saved}. ${expected}`)
   })
 })
 
 describe("saveGeneratedImage", () => {
+  useTempDirectory()
+
   test("writes the decoded image to the requested path", async () => {
     const out = "image.png"
     const result = await saveGeneratedImage(out, dir, PNG_BASE64)

@@ -1,5 +1,6 @@
 import * as fs from "node:fs/promises"
 import * as path from "node:path"
+import type { ImageGenerationDetails } from "./types"
 
 const MAX_OUTPUT_VERSION_SUFFIX = 999
 
@@ -35,12 +36,21 @@ function readPngSize(png: Buffer): PixelSize {
 }
 
 // The pixel size is reported because the backend can return an edge 1px off from the requested size.
-export function buildSavedMessage(savedPath: string, requestedPath: string, size: PixelSize): string {
+export function buildSavedMessage(
+  savedPath: string,
+  requestedPath: string,
+  size: PixelSize,
+  details?: ImageGenerationDetails,
+): string {
   const versionNote =
     savedPath !== requestedPath
       ? ` (the requested path ${requestedPath} already existed; the new image was versioned to avoid overwriting it)`
       : ""
-  return `Generated image saved to ${savedPath}${versionNote}. The image is ${size.width}x${size.height} pixels.`
+  const fields = []
+  if (details?.quality) fields.push(`quality: ${details.quality}`)
+  if (details?.outputTokens !== undefined) fields.push(`output_tokens: ${details.outputTokens}`)
+  const generationNote = fields.length ? ` (${fields.join(", ")})` : ""
+  return `Generated image saved to ${savedPath}${versionNote}. The image is ${size.width}x${size.height} pixels${generationNote}.`
 }
 
 async function isDirectory(p: string): Promise<boolean> {
@@ -67,7 +77,12 @@ type SaveResult = { savedPath: string; versioned: boolean; message: string }
 // decoded PNG. Avoiding an overwrite is best-effort: the collision check and the
 // write are not atomic, so a concurrent writer racing between them could still be
 // clobbered. Returns the user-facing message alongside the saved path.
-export async function saveGeneratedImage(out: string, ctxDir: string, base64: string): Promise<SaveResult> {
+export async function saveGeneratedImage(
+  out: string,
+  ctxDir: string,
+  base64: string,
+  details?: ImageGenerationDetails,
+): Promise<SaveResult> {
   const requestedPath = path.isAbsolute(out) ? out : path.resolve(ctxDir, out)
   await ensureDir(path.dirname(requestedPath))
   const savedPath = await pickNonOverwritePath(requestedPath)
@@ -76,6 +91,6 @@ export async function saveGeneratedImage(out: string, ctxDir: string, base64: st
   return {
     savedPath,
     versioned: savedPath !== requestedPath,
-    message: buildSavedMessage(savedPath, requestedPath, readPngSize(png)),
+    message: buildSavedMessage(savedPath, requestedPath, readPngSize(png), details),
   }
 }

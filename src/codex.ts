@@ -1,5 +1,5 @@
 import { appendSizeToPrompt, type ImageSize } from "./size"
-import type { LoadOpenAIAuth } from "./types"
+import type { ImageGenerationDetails, LoadOpenAIAuth } from "./types"
 
 // Codex OAuth images endpoint URLs. Codex calls edits when reference images are given.
 // https://github.com/openai/codex/blob/a4ebc509f4cdff88a8e58e175541970a30a2d385/codex-rs/model-provider-info/src/lib.rs#L80
@@ -11,7 +11,13 @@ const CODEX_IMAGES_BASE_URL = "https://chatgpt.com/backend-api/codex"
 // https://github.com/yuji-hatakeyama/opencode-gpt-imagegen/issues/107#issuecomment-6020014602
 const CODEX_REQUEST_DEFAULTS = { model: "gpt-image-2", quality: "auto", size: "auto" }
 
-type CodexImagesResponse = { data?: Array<{ b64_json?: string }> }
+type CodexImagesResponse = {
+  data?: Array<{ b64_json?: string }>
+  quality?: unknown
+  usage?: { output_tokens?: unknown } | null
+}
+
+type CodexImageResult = { base64: string } & ImageGenerationDetails
 
 export type CodexImageRequest = {
   prompt: string
@@ -55,7 +61,7 @@ export async function requestCodexImage(
   loadOpenAIAuth: LoadOpenAIAuth,
   request: CodexImageRequest,
   signal?: AbortSignal,
-): Promise<string> {
+): Promise<CodexImageResult> {
   const target = await resolveImagesTarget(connection, loadOpenAIAuth)
   const isEdit = request.images.length > 0
   const body = {
@@ -79,10 +85,17 @@ export async function requestCodexImage(
     const detail = await res.text().catch(() => "")
     throw new Error(`codex images request failed: ${res.status} ${detail.slice(0, 500)}`)
   }
-  const image = ((await res.json()) as CodexImagesResponse).data?.[0]?.b64_json
+  const response = (await res.json()) as CodexImagesResponse
+  const base64 = response.data?.[0]?.b64_json
   // Reject an empty image too: decoding it would write a 0-byte file and report success.
-  if (!image) {
+  if (!base64) {
     throw new Error("no image returned by codex images endpoint")
   }
-  return image
+  const { quality, usage } = response
+  const outputTokens = usage?.output_tokens
+  return {
+    base64,
+    quality: typeof quality === "string" ? quality : undefined,
+    outputTokens: typeof outputTokens === "number" ? outputTokens : undefined,
+  }
 }
