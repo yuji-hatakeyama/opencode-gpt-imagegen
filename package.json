@@ -58,7 +58,7 @@
     }
   },
   "devDependencies": {
-    "@biomejs/biome": "^2.6.8",
+    "@biomejs/biome": "^2.6.9",
     "@opencode-ai/plugin": "^1.19.6",
     "@opencode/plugin": "^2.4.1",
     "@tsconfig/node22": "^22.0.7",
